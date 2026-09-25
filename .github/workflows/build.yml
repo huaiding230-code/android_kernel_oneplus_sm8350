@@ -102,6 +102,8 @@ jobs:
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SELINUX_HIDE
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_SUS_PATH
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --disable CONFIG_MODVERSIONS
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --disable CONFIG_MODULE_SIG
           fi
 
           make "${MAKE_ARGS[@]}" olddefconfig
