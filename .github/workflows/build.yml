@@ -110,6 +110,13 @@ jobs:
           "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_SUS_PATH
           "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --disable CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT
           "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --disable CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT
+
+          "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --disable CONFIG_ALWAYS_ENFORCE
+          "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SECURITY_SELINUX_DEVELOP
+
+          "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --disable CONFIG_LTO
+          "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --disable CONFIG_THINLTO
+          "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable COG_LTO_NNFIONE
           fi
 
           make "${MAKE_ARGS[@]}" olddefconfig
