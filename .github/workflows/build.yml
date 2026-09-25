@@ -28,42 +28,58 @@ jobs:
           git clone --depth=1 https://github.com/huaiding230-code/proton-clang.git toolchain/proton-clang
           echo "${GITHUB_WORKSPACE}/toolchain/proton-clang/bin" >> $GITHUB_PATH
 
-      # 3. 完整注入 SukiSU Ultra 与 SUSFS 模块
-      - name: Integrate SukiSU Ultra + SUSFS
+          # 3. 仅注入 SukiSU Ultra 模块（已注销 SUSFS）
+      - name: Integrate SukiSU Ultra
         run: |
           set -euo pipefail
           cd kernel_source
           echo "========================================"
-          echo "1. 克隆个人仓库 SukiSU Ultra 与 susfs4ksu"
+          echo "1. 克隆 SukiSU Ultra 仓库"
           echo "========================================"
-          rm -rf /tmp/SukiSU-Ultra /tmp/susfs4ksu
+          rm -rf /tmp/SukiSU-Ultra
           git clone --depth=1 https://github.com/huaiding230-code/SukiSU-Ultra.git /tmp/SukiSU-Ultra
-          git clone --depth=1 https://github.com/huaiding230-code/susfs4ksu.git /tmp/susfs4ksu
 
           echo "========================================"
-          echo "2. 执行 setup.sh"
+          echo "2. 执行 setup.sh 自动 Hook"
           echo "========================================"
           bash /tmp/SukiSU-Ultra/kernel/setup.sh
 
-          echo "========================================"
-          echo "3. 从 susfs4ksu 注入 SUSFS 模块与头文件"
-          echo "========================================"
-          SUSFS_C=$(find /tmp/susfs4ksu -name "susfs.c" | head -n 1)
-          if [ -n "$SUSFS_C" ]; then
-            cp "$SUSFS_C" fs/
-          else
-            echo "[-] 错误: 未找到 susfs.c" && exit 1
-          fi
+      # # 3. 完整注入 SukiSU Ultra 与 SUSFS 模块
+      # - name: Integrate SukiSU Ultra + SUSFS
+      #   run: |
+      #     set -euo pipefail
+      #     cd kernel_source
+      #     echo "========================================"
+      #     echo "1. 克隆个人仓库 SukiSU Ultra 与 susfs4ksu"
+      #     echo "========================================"
+      #     rm -rf /tmp/SukiSU-Ultra /tmp/susfs4ksu
+      #     git clone --depth=1 https://github.com/huaiding230-code/SukiSU-Ultra.git /tmp/SukiSU-Ultra
+      #     git clone --depth=1 https://github.com/huaiding230-code/susfs4ksu.git /tmp/susfs4ksu
 
-          find /tmp/susfs4ksu -name "susfs*.h" -exec cp {} include/linux/ \;
+      #     echo "========================================"
+      #     echo "2. 执行 setup.sh"
+      #     echo "========================================"
+      #     bash /tmp/SukiSU-Ultra/kernel/setup.sh
 
-          if ! grep -q "susfs.o" fs/Makefile; then
-            echo "obj-\$(CONFIG_KSU_SUSFS) += susfs.o" >> fs/Makefile
-          fi
+      #     echo "========================================"
+      #     echo "3. 从 susfs4ksu 注入 SUSFS 模块与头文件"
+      #     echo "========================================"
+      #     SUSFS_C=$(find /tmp/susfs4ksu -name "susfs.c" | head -n 1)
+      #     if [ -n "$SUSFS_C" ]; then
+      #       cp "$SUSFS_C" fs/
+      #     else
+      #       echo "[-] 错误: 未找到 susfs.c" && exit 1
+      #     fi
 
-          if ! grep -q "CONFIG_KSU_SUSFS" fs/Kconfig; then
-            echo -e '\nconfig KSU_SUSFS\n\tbool "SUSFS support"\n\tdefault y\n' >> fs/Kconfig
-          fi
+      #     find /tmp/susfs4ksu -name "susfs*.h" -exec cp {} include/linux/ \;
+
+      #     if ! grep -q "susfs.o" fs/Makefile; then
+      #       echo "obj-\$(CONFIG_KSU_SUSFS) += susfs.o" >> fs/Makefile
+      #     fi
+
+      #     if ! grep -q "CONFIG_KSU_SUSFS" fs/Kconfig; then
+      #       echo -e '\nconfig KSU_SUSFS\n\tbool "SUSFS support"\n\tdefault y\n' >> fs/Kconfig
+      #     fi
 
       # 4. 执行内核编译 (严格复刻纯净版的 MAKE_ARGS 与编译顺序)
       - name: Build Integrated Kernel
@@ -93,31 +109,15 @@ jobs:
           make "${MAKE_ARGS[@]}" "${DEFCONFIG}"
 
           echo "========================================"
-          echo "2. 配置 SukiSU 与 SUSFS 核心开关"
+          echo "2. 配置 SukiSU核心开关"
           echo "========================================"
           CONFIG_TOOL="scripts/config"
           if [ -f "${CONFIG_TOOL}" ]; then
             chmod +x "${CONFIG_TOOL}"
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SELINUX_HIDE
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_SUS_PATH
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --disable CONFIG_MODVERSIONS
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --disable CONFIG_MODULE_SIG
-            # ----------------------------------------------------
-            # 强制开启 PSTORE / RAMOOPS 崩溃日志抓取
-            # ----------------------------------------------------
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_PSTORE
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_PSTORE_CONSOLE
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_PSTORE_PMSG
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_PSTORE_RAM
-            
-            # 开启内核日志时间戳与详细调试打印
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_PRINTK_TIME
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_DYNAMIC_DEBUG
-            
-            # 关键：设置崩溃时不自动重启（避免内存数据被擦除）
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --set-val CONFIG_PANIC_TIMEOUT 0
           fi
 
           make "${MAKE_ARGS[@]}" olddefconfig
