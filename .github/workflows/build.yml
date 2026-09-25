@@ -107,6 +107,7 @@ jobs:
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --disable CONFIG_LTO
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --disable CONFIG_LTO_CLANG
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_LTO_NONE
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --set-val CONFIG_FRAME_WARN 4096
           fi
 
           make "${MAKE_ARGS[@]}" olddefconfig
