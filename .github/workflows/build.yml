@@ -1,0 +1,105 @@
+name: Phase 1 - Pure LineageOS Kernel Build (Baseline Test)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Maximize Build Space
+        uses: easimon/maximize-build-space@master
+        with:
+          root-reserve-mb: 8192
+          temp-reserve-mb: 2048
+
+      - name: Checkout Kernel Source
+        uses: actions/checkout@v4
+        with:
+          # 请确保此处填写的分支与你手机当前的 Android 版本严格对应 (如 lineage-21.0)
+          ref: lineage-23.2
+          path: kernel_source
+          fetch-depth: 1
+
+      - name: Setup Proton-Clang Toolchain
+        run: |
+          mkdir -p toolchain
+          git clone --depth=1 https://github.com/huaiding230-code/proton-clang.git toolchain/proton-clang
+          echo "${GITHUB_WORKSPACE}/toolchain/proton-clang/bin" >> $GITHUB_PATH
+
+      - name: Build Pure Kernel
+        run: |
+          set -euo pipefail
+          cd kernel_source
+          CLANG_DIR="${GITHUB_WORKSPACE}/toolchain/proton-clang"
+          export PATH="${CLANG_DIR}/bin:${PATH}"
+          OUT_DIR="${GITHUB_WORKSPACE}/out"
+          mkdir -p "${OUT_DIR}"
+
+          # 定位一加 9 在 LineageOS 源码中的默认配置文件
+          DEFCONFIG="vendor/lahaina-qgki_defconfig"
+
+          # 移除了所有 KCFLAGS 屏蔽参数，让真正的报错显露出来
+          MAKE_ARGS=(
+            ARCH=arm64
+            LLVM=1
+            LLVM_IAS=1
+            CC=clang
+            CROSS_COMPILE=aarch64-linux-gnu-
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+            O="${OUT_DIR}"
+          )
+
+          echo "========================================"
+          echo "1. 配置 Defconfig"
+          echo "========================================"
+          make "${MAKE_ARGS[@]}" "${DEFCONFIG}"
+
+          echo "========================================"
+          echo "2. 执行内核编译 (纯净版)"
+          echo "========================================"
+          make "${MAKE_ARGS[@]}" -j$(nproc)
+
+      - name: Pack with AnyKernel3
+        shell: bash
+        run: |
+          set -e
+          cd "${GITHUB_WORKSPACE}"
+          
+          # 下载 AnyKernel3
+          git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git AnyKernel3
+          cd AnyKernel3
+          rm -rf .git README.md *placeholder
+
+          # 注入一加9的 AnyKernel3 刷机参数
+          sed -i -E 's/^[[:space:]]*do\.devicecheck=.*/do.devicecheck=0/' anykernel.sh
+          sed -i -E 's/^[[:space:]]*(BLOCK|block)=.*/BLOCK=\/dev\/block\/bootdevice\/by-name\/boot;/' anykernel.sh
+          sed -i -E 's/^[[:space:]]*(IS_SLOT_DEVICE|is_slot_device)=.*/IS_SLOT_DEVICE=1;/' anykernel.sh
+
+          echo "========================================"
+          echo "提取内核镜像产物"
+          echo "========================================"
+          OUT_DIR="${GITHUB_WORKSPACE}/out"
+          
+          if [ -f "${OUT_DIR}/arch/arm64/boot/Image.gz-dtb" ]; then
+            cp "${OUT_DIR}/arch/arm64/boot/Image.gz-dtb" ./
+            echo "[+] 已提取 Image.gz-dtb"
+          elif [ -f "${OUT_DIR}/arch/arm64/boot/Image" ]; then
+            cp "${OUT_DIR}/arch/arm64/boot/Image" ./
+            echo "[+] 已提取 Image"
+          else
+            echo "[-] 致命错误：未找到支持的内核镜像文件！"
+            exit 1
+          fi
+
+          # 暂不打包任何 .ko 模块，避免覆盖 vendor_boot 导致不开机
+          echo "========================================"
+          echo "打包 Zip 刷机包"
+          echo "========================================"
+          zip -r9 "../Lineage-Pure-Kernel.zip" * -x .git README.md
+
+      - name: Upload Kernel Zip Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Lineage-Pure-Kernel-Test
+          path: Lineage-Pure-Kernel.zip
