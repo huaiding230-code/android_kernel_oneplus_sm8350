@@ -108,8 +108,8 @@ jobs:
           
           # 4. SUSFS 隐藏功能 (路径与挂载隐藏)
           "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_SUS_PATH
-          "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT
-          "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT
+          "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --disable CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT
+          "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --disable CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT
           fi
 
           make "${MAKE_ARGS[@]}" olddefconfig
