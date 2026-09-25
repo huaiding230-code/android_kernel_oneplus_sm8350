@@ -104,6 +104,20 @@ jobs:
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_SUS_PATH
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --disable CONFIG_MODVERSIONS
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --disable CONFIG_MODULE_SIG
+            # ----------------------------------------------------
+            # 强制开启 PSTORE / RAMOOPS 崩溃日志抓取
+            # ----------------------------------------------------
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_PSTORE
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_PSTORE_CONSOLE
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_PSTORE_PMSG
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_PSTORE_RAM
+            
+            # 开启内核日志时间戳与详细调试打印
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_PRINTK_TIME
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_DYNAMIC_DEBUG
+            
+            # 关键：设置崩溃时不自动重启（避免内存数据被擦除）
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --set-val CONFIG_PANIC_TIMEOUT 0
           fi
 
           make "${MAKE_ARGS[@]}" olddefconfig
