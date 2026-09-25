@@ -102,6 +102,12 @@ jobs:
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SELINUX_HIDE
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_SUS_PATH
+
+            # 1. 禁用各种形式的 LTO 优化，开启 LTO_NONE
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --disable CONFIG_LTO
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --disable CONFIG_LTO_CLANG
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --disable CONFIG_THINLTO
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_LTO_NONE
           fi
 
           make "${MAKE_ARGS[@]}" olddefconfig
