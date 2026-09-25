@@ -16,7 +16,6 @@ jobs:
       - name: Checkout Kernel Source
         uses: actions/checkout@v4
         with:
-          # 请确保此处填写的分支与你手机当前的 Android 版本严格对应 (如 lineage-21.0)
           ref: lineage-23.2
           path: kernel_source
           fetch-depth: 1
@@ -39,7 +38,6 @@ jobs:
           # 定位一加 9 在 LineageOS 源码中的默认配置文件
           DEFCONFIG="vendor/lahaina-qgki_defconfig"
 
-          # 移除了所有 KCFLAGS 屏蔽参数，让真正的报错显露出来
           MAKE_ARGS=(
             ARCH=arm64
             LLVM=1
