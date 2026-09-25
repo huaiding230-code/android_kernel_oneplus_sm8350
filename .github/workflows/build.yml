@@ -97,26 +97,15 @@ jobs:
           CONFIG_TOOL="scripts/config"
           if [ -f "${CONFIG_TOOL}" ]; then
             chmod +x "${CONFIG_TOOL}"
-            # 1. 核心 Root 框架 (SukiSU / KernelSU)
-          "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU
-          
-          # 2. SUSFS 隐藏框架主开关
-          "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS
-          
-          # 3. KSU 隐藏机制
-          "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SELINUX_HIDE
-          
-          # 4. SUSFS 隐藏功能 (路径与挂载隐藏)
-          "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_SUS_PATH
-          "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --disable CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT
-          "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --disable CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT
-
-          "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --disable CONFIG_ALWAYS_ENFORCE
-          "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SECURITY_SELINUX_DEVELOP
-
-          "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --disable CONFIG_LTO
-          "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --disable CONFIG_THINLTO
-          "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable COG_LTO_NNFIONE
+          # 1. 核心 Root 框架 (SukiSU)
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU
+            
+            # 2. SUSFS 框架主开关
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS
+            
+            # 3. KSU 隐蔽/掩盖增强
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SELINUX_HIDE
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_SUS_PATH
           fi
 
           make "${MAKE_ARGS[@]}" olddefconfig
