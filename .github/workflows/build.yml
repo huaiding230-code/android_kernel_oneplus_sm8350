@@ -1,4 +1,4 @@
-name: Phase 1 - Pure LineageOS Kernel Build (Baseline Test)
+name: Phase 2 - Kernel with KSU and SUSFS
 
 on:
   workflow_dispatch:
@@ -13,6 +13,7 @@ jobs:
           root-reserve-mb: 8192
           temp-reserve-mb: 2048
 
+      # 1. 拉取 LineageOS 内核源码
       - name: Checkout Kernel Source
         uses: actions/checkout@v4
         with:
@@ -20,13 +21,67 @@ jobs:
           path: kernel_source
           fetch-depth: 1
 
+      # 2. 拉取你的 SukiSU-Ultra 仓库
+      - name: Checkout SukiSU-Ultra
+        uses: actions/checkout@v4
+        with:
+          repository: huaiding230-code/SukiSU-Ultra
+          path: SukiSU
+          
+      # 3. 注入代码并打补丁 (注意 EOF 必须顶格)
+      - name: Apply SUSFS and KSU
+        run: |
+          cd kernel_source
+          
+          echo "========================================"
+          echo "1. 注入 SukiSU (KernelSU)"
+          echo "========================================"
+          cp -r ../SukiSU/kernel drivers/kernelsu
+          echo "obj-\$(CONFIG_KSU) += kernelsu/" >> drivers/Makefile
+          
+          echo "========================================"
+          echo "2. 打入 SUSFS 5.4 补丁"
+          echo "========================================"
+          patch -p1 < patch/50_add_susfs_in_kernel-5.4.patch
+          
+          echo "========================================"
+          echo "3. 注入 5.4 内核 VFS 安全存根 (防止开机进 Fastboot)"
+          echo "========================================"
+          SU_MOUNT_NS_C="drivers/kernelsu/infra/su_mount_ns.c"
+          if [ -f "$SU_MOUNT_NS_C" ]; then
+              cat << 'EOF' >> "$SU_MOUNT_NS_C"
+          #include <linux/version.h>
+          #include <linux/errno.h>
+          #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0)
+          int path_mount(const char *dev_name, struct path *path, const char *type_page, unsigned long flags, void *data_page) {
+              return -ENOSYS;
+          }
+          #endif
+          EOF
+              echo "[+] 成功修补 path_mount 存根"
+          fi
+
+          KERNEL_UMOUNT_C="drivers/kernelsu/feature/kernel_umount.c"
+          if [ -f "$KERNEL_UMOUNT_C" ]; then
+              cat << 'EOF' >> "$KERNEL_UMOUNT_C"
+          #include <linux/version.h>
+          #include <linux/errno.h>
+          #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0)
+          int path_umount(struct path *path, int flags) {
+              return -ENOSYS;
+          }
+          #endif
+          EOF
+              echo "[+] 成功修补 path_umount 存根"
+          fi
+
       - name: Setup Proton-Clang Toolchain
         run: |
           mkdir -p toolchain
           git clone --depth=1 https://github.com/huaiding230-code/proton-clang.git toolchain/proton-clang
           echo "${GITHUB_WORKSPACE}/toolchain/proton-clang/bin" >> $GITHUB_PATH
 
-      - name: Build Pure Kernel
+      - name: Build Kernel
         run: |
           set -euo pipefail
           cd kernel_source
@@ -35,7 +90,6 @@ jobs:
           OUT_DIR="${GITHUB_WORKSPACE}/out"
           mkdir -p "${OUT_DIR}"
 
-          # 定位一加 9 在 LineageOS 源码中的默认配置文件
           DEFCONFIG="vendor/lahaina-qgki_defconfig"
 
           MAKE_ARGS=(
@@ -48,13 +102,22 @@ jobs:
             O="${OUT_DIR}"
           )
 
-          echo "========================================"
-          echo "1. 配置 Defconfig"
-          echo "========================================"
           make "${MAKE_ARGS[@]}" "${DEFCONFIG}"
+          
+          echo "========================================"
+          echo "强制开启 KSU 与 SUSFS 编译开关"
+          echo "========================================"
+          echo "CONFIG_KSU=y" >> "${OUT_DIR}/.config"
+          echo "CONFIG_KSU_SUSFS=y" >> "${OUT_DIR}/.config"
+          echo "CONFIG_KSU_SUSFS_SUS_PATH=y" >> "${OUT_DIR}/.config"
+          echo "CONFIG_KSU_SUSFS_SUS_MOUNT=y" >> "${OUT_DIR}/.config"
+          echo "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=y" >> "${OUT_DIR}/.config"
+          echo "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y" >> "${OUT_DIR}/.config"
+          echo "CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT=y" >> "${OUT_DIR}/.config"
+          echo "CONFIG_KSU_SUSFS_SUS_SU=y" >> "${OUT_DIR}/.config"
 
           echo "========================================"
-          echo "2. 执行内核编译 (纯净版)"
+          echo "执行内核编译"
           echo "========================================"
           make "${MAKE_ARGS[@]}" -j$(nproc)
 
@@ -64,37 +127,28 @@ jobs:
           set -e
           cd "${GITHUB_WORKSPACE}"
           
-          # 下载 AnyKernel3
           git clone --depth=1 https://github.com/huaiding230-code/AnyKernel3.git AnyKernel3
           cd AnyKernel3
           rm -rf .git README.md *placeholder
 
-          # 注入一加9的 AnyKernel3 刷机参数
+          # AnyKernel3 核心防砖参数：强制阉割模块打包功能
           sed -i -E 's/^[[:space:]]*do\.devicecheck=.*/do.devicecheck=0/' anykernel.sh
           sed -i -E 's/^[[:space:]]*(BLOCK|block)=.*/BLOCK=\/dev\/block\/bootdevice\/by-name\/boot;/' anykernel.sh
           sed -i -E 's/^[[:space:]]*(IS_SLOT_DEVICE|is_slot_device)=.*/IS_SLOT_DEVICE=1;/' anykernel.sh
+          sed -i -E 's/^[[:space:]]*do\.modules=.*/do.modules=0/' anykernel.sh
 
-          echo "========================================"
-          echo "提取内核镜像产物"
-          echo "========================================"
           OUT_DIR="${GITHUB_WORKSPACE}/out"
-          
           if [ -f "${OUT_DIR}/arch/arm64/boot/Image.gz-dtb" ]; then
             cp "${OUT_DIR}/arch/arm64/boot/Image.gz-dtb" ./
-            echo "[+] 已提取 Image.gz-dtb"
           elif [ -f "${OUT_DIR}/arch/arm64/boot/Image" ]; then
             cp "${OUT_DIR}/arch/arm64/boot/Image" ./
-            echo "[+] 已提取 Image"
           else
-            echo "[-] 致命错误：未找到支持的内核镜像文件！"
+            echo "[-] 未找到支持的内核镜像！"
             exit 1
           fi
-
-          # 删除了手动 zip -r9 的命令
 
       - name: Upload Kernel Zip Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Lineage-Pure-Kernel-Test
-          # 直接上传 AnyKernel3 目录下的所有文件，GitHub 会自动打成一个单层的 Zip 刷机包
+          name: SukiSU-SUSFS-Kernel
           path: AnyKernel3/*
