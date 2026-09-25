@@ -97,23 +97,19 @@ jobs:
           CONFIG_TOOL="scripts/config"
           if [ -f "${CONFIG_TOOL}" ]; then
             chmod +x "${CONFIG_TOOL}"
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_NET
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_INET
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KEYS
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_PERF_EVENTS
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_SUS_PATH    
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_SUS_KSTAT
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_SPOOF_UNAME
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_ENABLE_LOG
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_OPEN_REDIRECT
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SPOOF_CPU
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SELINUX_HIDE
+            # 1. 核心 Root 框架 (SukiSU / KernelSU)
+          "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU
+          
+          # 2. SUSFS 隐藏框架主开关
+          "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS
+          
+          # 3. KSU 隐藏机制
+          "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SELINUX_HIDE
+          
+          # 4. SUSFS 隐藏功能 (路径与挂载隐藏)
+          "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_SUS_PATH
+          "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT
+          "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT
           fi
 
           make "${MAKE_ARGS[@]}" olddefconfig
