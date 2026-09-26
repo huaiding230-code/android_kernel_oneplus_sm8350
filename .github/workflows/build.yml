@@ -39,18 +39,21 @@ jobs:
           cd kernel_source
           
           echo "========================================"
-          echo "1. 执行 setup.sh 并传入你的分支参数"
+          echo "1. 先克隆 SukiSU-Ultra 到 KernelSU 目录"
           echo "========================================"
-          # 如果你的代码在 main 分支，就传 main；如果是其他分支就传对应名字
-          # 这样 setup.sh 就会自动处理克隆、切换分支、建立软链接和修改 Makefile/Kconfig
-          bash SukiSU-Ultra/kernel/setup.sh main
+          git clone --depth=1 https://github.com/huaiding230-code/SukiSU-Ultra KernelSU
           
           echo "========================================"
-          echo "2. 注入 SUSFS 模块到内核主树"
+          echo "2. 执行 setup.sh 建立软链接与挂载"
+          echo "========================================"
+          # 此时 KernelSU 已经存在，它的内部就包含了 kernel/setup.sh
+          bash KernelSU/kernel/setup.sh main
+          
+          echo "========================================"
+          echo "3. 注入 SUSFS 模块到内核主树"
           echo "========================================"
           mkdir -p fs include/linux
           
-          # 克隆 susfs4ksu 源码并提取文件
           rm -rf /tmp/susfs4ksu
           git clone --depth=1 https://github.com/huaiding230-code/susfs4ksu.git /tmp/susfs4ksu
           
@@ -69,11 +72,10 @@ jobs:
           if ! grep -q "CONFIG_KSU_SUSFS" fs/Kconfig; then
             echo -e '\nconfig KSU_SUSFS\n\tbool "SUSFS support"\n\tdefault y\n' >> fs/Kconfig
           fi
-
+          
           echo "========================================"
           echo "4. 为 SukiSU (KernelSU) 打上 SUSFS 对接补丁"
           echo "========================================"
-          # 寻找 susfs4ksu 中针对 KernelSU 的补丁文件并应用到 KernelSU 目录
           KSU_PATCH=$(find /tmp/susfs4ksu -name "*ksu*.patch" -o -name "*KernelSU*.patch" | head -n 1)
           if [ -n "$KSU_PATCH" ] && [ -f "$KSU_PATCH" ]; then
             echo "找到 KernelSU 补丁: $KSU_PATCH"
