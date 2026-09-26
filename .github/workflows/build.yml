@@ -32,55 +32,40 @@ jobs:
           git clone --depth=1 https://github.com/kdrag0n/proton-clang.git toolchain/proton-clang
           echo "${GITHUB_WORKSPACE}/toolchain/proton-clang/bin" >> "${GITHUB_PATH}"
 
-     # 4. 植入 SukiSU 源码 (使用你 SukiSU 仓库的 test-branch 分支与标准 setup.sh)
-      - name: Integrate SukiSU Builtin
-        shell: bash
+     
+      - name: Integrate SukiSU Ultra + SUSFS
         run: |
           set -euo pipefail
-          cd "${GITHUB_WORKSPACE}/kernel_source"
-          echo "========================================"
-          echo "Integrating SukiSU Builtin"
-          echo "========================================"
+          cd kernel_source
           
-          # 克隆你个人仓库里的 SukiSU-Ultra 到 KernelSU 目录
-          git clone -b test-branch https://github.com/huaiding230-code/SukiSU-Ultra.git KernelSU
+          echo "========================================"
+          echo "1. 拉取 SukiSU Ultra (builtin 分支) 与 susfs 源码"
+          echo "========================================"
+          # 直接拉取你的 builtin 分支到 KernelSU 目录
+          git clone --depth=1 -b test-branch https://github.com/huaiding230-code/SukiSU-Ultra.git KernelSU
+          # 拉取 susfs 源码到临时目录备用
+          git clone --depth=1 https://github.com/huaiding230-code/susfs4ksu.git /tmp/susfs4ksu
           
-          # 运行官方标准的 setup.sh 脚本，自动处理软链接和驱动层的 Makefile/Kconfig
+          echo "========================================"
+          echo "2. 执行 SukiSU setup.sh (builtin 模式)"
+          echo "========================================"
           bash KernelSU/kernel/setup.sh builtin
           
-          # 安全校验
-          if [ ! -d "KernelSU" ] || [ ! -L "drivers/kernelsu" ]; then
-            echo "ERROR: SukiSU integration failed."
-            exit 1
-          fi
-          echo "SukiSU Builtin integration completed."
-
-      # 5. 准备 SUSFS 源码文件 (直接从你仓库的 patch 目录复制)
-      - name: Prepare SUSFS Files
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd "${GITHUB_WORKSPACE}/kernel_source"
           echo "========================================"
-          echo "Preparing SUSFS source files"
+          echo "3. 注入 SUSFS 模块到内核主树"
           echo "========================================"
+          # 复制 susfs 的核心 C 源码和头文件
+          cp /tmp/susfs4ksu/susfs.c fs/
+          cp /tmp/susfs4ksu/susfs*.h include/linux/
           
-          # 创建内核中的目标文件夹
-          mkdir -p fs include/linux
-          
-          # 将你仓库里整理好的 patch 文件精准复制到内核对应目录
-          cp patch/fs/susfs.c fs/susfs.c
-          cp patch/susfs.h include/linux/susfs.h
-          
-          # 自动向内核的 fs/Makefile 和 fs/Kconfig 注入 SUSFS 编译规则（避开复杂的 patch 冲突）
+          # 直接在 Makefile 和 Kconfig 中追加配置（替代容易报错的 patch）
           if ! grep -q "susfs.o" fs/Makefile; then
             echo "obj-\$(CONFIG_KSU_SUSFS) += susfs.o" >> fs/Makefile
           fi
           if ! grep -q "CONFIG_KSU_SUSFS" fs/Kconfig; then
             echo -e '\nconfig KSU_SUSFS\n\tbool "SUSFS support"\n\tdefault y\n' >> fs/Kconfig
           fi
-          
-          echo "SUSFS source files copied and hooked."
+
       - name: Build Integrated Kernel
         run: |
           set -euo pipefail
@@ -168,6 +153,7 @@ jobs:
           echo "5. 开始多核极速编译内核"
           echo "========================================"
           make "${MAKE_ARGS[@]}" -j"$(nproc)"
+          
       # 9. 用 AnyKernel3 制作卡刷包
       - name: Pack with AnyKernel3
         shell: bash
