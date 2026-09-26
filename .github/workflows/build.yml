@@ -73,6 +73,21 @@ jobs:
             > drivers/kernelsu/feature/kernel_umount.c
             echo "已清空不兼容的 kernel_umount.c"
           fi
+
+          echo "========================================"
+          echo "修补 sulog.c 缺失的头文件"
+          echo "========================================"
+          if [ -f "drivers/kernelsu/feature/sulog.c" ]; then
+            echo '#include <linux/types.h>' > /tmp/sulog_patch.c
+            echo '#include <linux/kernel.h>' >> /tmp/sulog_patch.c
+            echo '#include <linux/init.h>' >> /tmp/sulog_patch.c
+            echo '#include "feature.h"' >> /tmp/sulog_patch.c
+            echo '#include "../include/ksu.h"' >> /tmp/sulog_patch.c
+
+            cat drivers/kernelsu/feature/sulog.c >> /tmp/sulog_patch.c
+            mv /tmp/sulog_patch.c drivers/kernelsu/feature/sulog.c
+            echo "已成功注入 sulog.c 基础头文件"
+          fi
   
           echo "========================================"
           echo "3. 注入 SUSFS 模块到内核主树"
