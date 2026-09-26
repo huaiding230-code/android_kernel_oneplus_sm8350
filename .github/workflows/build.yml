@@ -1,4 +1,4 @@
-name: Phase 2 - LineageOS Kernel with SukiSU and SUSFS
+name: Phase 2 - LineageOS Kernel with SukiSU
 
 on:
   workflow_dispatch:
@@ -17,7 +17,6 @@ jobs:
       - name: Checkout Kernel Source
         uses: actions/checkout@v4
         with:
-          # 保持你原来的 LineageOS 内核分支
           ref: lineage-23.2
           path: kernel_source
           fetch-depth: 1
@@ -29,7 +28,6 @@ jobs:
 
           mkdir -p toolchain
 
-          # 继续使用你自己的 Proton-Clang fork
           git clone \
             --depth=1 \
             https://github.com/huaiding230-code/proton-clang.git \
@@ -37,7 +35,7 @@ jobs:
 
           echo "${GITHUB_WORKSPACE}/toolchain/proton-clang/bin" >> "${GITHUB_PATH}"
 
-      - name: Integrate Official SukiSU builtin
+      - name: Integrate SukiSU Builtin
         shell: bash
         run: |
           set -euo pipefail
@@ -45,12 +43,9 @@ jobs:
           cd "${GITHUB_WORKSPACE}/kernel_source"
 
           echo "========================================"
-          echo "Integrating official SukiSU builtin"
+          echo "Integrating SukiSU Builtin"
           echo "========================================"
 
-          # 使用官方 SukiSU setup.sh。
-          # setup.sh 内部会拉取官方 SukiSU 仓库。
-          # builtin 适合一加 9 这种非 GKI 5.4 内核。
           curl -fsSL \
             "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" \
             | bash -s builtin
@@ -70,41 +65,14 @@ jobs:
             exit 1
           fi
 
-          echo "SukiSU integration completed."
-
-      - name: Apply SUSFS 5.4 Patch
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          cd "${GITHUB_WORKSPACE}/kernel_source"
-
-          SUSFS_PATCH="patch/50_add_susfs_in_kernel-5.4.patch"
-
-          echo "========================================"
-          echo "Applying SUSFS 5.4 patch"
-          echo "========================================"
-
-          if [ ! -f "${SUSFS_PATCH}" ]; then
-            echo "ERROR: SUSFS patch not found:"
-            echo "${SUSFS_PATCH}"
-            exit 1
-          fi
-
-          echo "Checking patch:"
-          echo "${SUSFS_PATCH}"
-
-          git apply --check "${SUSFS_PATCH}"
-          git apply --verbose "${SUSFS_PATCH}"
-
-          echo "SUSFS 5.4 patch applied successfully."
+          echo "SukiSU Builtin integration completed."
 
       - name: Build LineageOS Kernel
         shell: bash
         run: |
           set -euo pipefail
 
-          cd kernel_source
+          cd "${GITHUB_WORKSPACE}/kernel_source"
 
           CLANG_DIR="${GITHUB_WORKSPACE}/toolchain/proton-clang"
           export PATH="${CLANG_DIR}/bin:${PATH}"
@@ -112,10 +80,8 @@ jobs:
           OUT_DIR="${GITHUB_WORKSPACE}/out"
           mkdir -p "${OUT_DIR}"
 
-          # 保留你原来的默认配置文件
           DEFCONFIG="vendor/lahaina-qgki_defconfig"
 
-          # 保留你原来的编译参数
           MAKE_ARGS=(
             ARCH=arm64
             LLVM=1
@@ -127,17 +93,15 @@ jobs:
           )
 
           echo "========================================"
-          echo "1. 配置 Defconfig"
+          echo "1. Loading Defconfig"
           echo "========================================"
 
-          # 保留原来的 defconfig
           make "${MAKE_ARGS[@]}" "${DEFCONFIG}"
 
           echo "========================================"
-          echo "2. 启用 SukiSU 和 SUSFS 配置"
+          echo "2. Enabling SukiSU Builtin"
           echo "========================================"
 
-          # Linux 内核自带的 Shell 配置工具
           CONFIG_SCRIPT="./scripts/config"
 
           if [ ! -f "${CONFIG_SCRIPT}" ]; then
@@ -147,31 +111,25 @@ jobs:
 
           chmod +x "${CONFIG_SCRIPT}"
 
-          # SukiSU / KernelSU
+          # SukiSU Builtin
           "${CONFIG_SCRIPT}" --enable CONFIG_KSU
 
-          # SUSFS
-          "${CONFIG_SCRIPT}" --enable CONFIG_KSU_SUSFS
+          # 确保没有残留 SUSFS 配置
+          "${CONFIG_SCRIPT}" --disable CONFIG_KSU_SUSFS || true
+          "${CONFIG_SCRIPT}" --disable CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT || true
 
-          # SUSFS 某些版本包含此选项。
-          # 如果你的 patch 没有这个配置项，则忽略。
-          "${CONFIG_SCRIPT}" \
-            --enable CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT || true
+          echo "========================================"
+          echo "3. Updating Kernel Configuration"
+          echo "========================================"
 
-          # 这些是 KPM 等功能需要的符号表配置，
-          # 对 SukiSU/SUSFS 也通常建议启用。
-          "${CONFIG_SCRIPT}" --enable CONFIG_KALLSYMS
-          "${CONFIG_SCRIPT}" --enable CONFIG_KALLSYMS_ALL
-
-          # 重新处理 Kconfig 依赖关系
           make "${MAKE_ARGS[@]}" olddefconfig
 
           echo "========================================"
-          echo "3. 检查最终配置"
+          echo "4. Checking Final Configuration"
           echo "========================================"
 
           grep -E \
-            '^(CONFIG_KSU=|CONFIG_KSU_|CONFIG_KALLSYMS)' \
+            '^(CONFIG_KSU=|CONFIG_KSU_)' \
             "${OUT_DIR}/.config" || true
 
           if ! grep -q '^CONFIG_KSU=y' "${OUT_DIR}/.config"; then
@@ -179,29 +137,26 @@ jobs:
             exit 1
           fi
 
-          if ! grep -q '^CONFIG_KSU_SUSFS=y' "${OUT_DIR}/.config"; then
-            echo "ERROR: CONFIG_KSU_SUSFS=y is missing."
-            echo "The SUSFS patch may not match the current SukiSU source."
+          if grep -q '^CONFIG_KSU_SUSFS=y' "${OUT_DIR}/.config"; then
+            echo "ERROR: SUSFS is unexpectedly enabled."
             exit 1
           fi
 
-          echo "SukiSU and SUSFS configuration passed."
+          echo "SukiSU Builtin configuration passed."
 
           echo "========================================"
-          echo "4. 执行内核编译"
+          echo "5. Building Kernel"
           echo "========================================"
 
-          # 保留你原来的编译命令
           make "${MAKE_ARGS[@]}" -j"$(nproc)"
 
       - name: Pack with AnyKernel3
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
 
           cd "${GITHUB_WORKSPACE}"
 
-          # 继续使用你自己的 AnyKernel3 fork
           git clone \
             --depth=1 \
             https://github.com/huaiding230-code/AnyKernel3.git \
@@ -212,7 +167,6 @@ jobs:
           rm -rf .git README.md
           rm -f *placeholder 2>/dev/null || true
 
-          # 保留你原来的 OnePlus 9 AnyKernel 参数
           sed -i -E \
             's/^[[:space:]]*do\.devicecheck=.*/do.devicecheck=0/' \
             anykernel.sh
@@ -226,24 +180,24 @@ jobs:
             anykernel.sh
 
           echo "========================================"
-          echo "提取内核镜像产物"
+          echo "Extracting Kernel Image"
           echo "========================================"
 
           OUT_DIR="${GITHUB_WORKSPACE}/out"
 
           if [ -f "${OUT_DIR}/arch/arm64/boot/Image.gz-dtb" ]; then
             cp "${OUT_DIR}/arch/arm64/boot/Image.gz-dtb" ./
-            echo "[+] 已提取 Image.gz-dtb"
+            echo "[+] Copied Image.gz-dtb"
           elif [ -f "${OUT_DIR}/arch/arm64/boot/Image" ]; then
             cp "${OUT_DIR}/arch/arm64/boot/Image" ./
-            echo "[+] 已提取 Image"
+            echo "[+] Copied Image"
           else
-            echo "[-] 致命错误：未找到支持的内核镜像文件！"
+            echo "[-] ERROR: Kernel image not found."
             exit 1
           fi
 
       - name: Upload Kernel Zip Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Lineage-SukiSU-SUSFS-Kernel
+          name: Lineage-SukiSU-Builtin-Kernel
           path: AnyKernel3/*
