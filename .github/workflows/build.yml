@@ -43,7 +43,7 @@ jobs:
           echo "========================================"
           # 如果你的代码在 main 分支，就传 main；如果是其他分支就传对应名字
           # 这样 setup.sh 就会自动处理克隆、切换分支、建立软链接和修改 Makefile/Kconfig
-          bash KernelSU/kernel/setup.sh main
+          bash SukiSU-Ultra/kernel/setup.sh main
           
           echo "========================================"
           echo "2. 注入 SUSFS 模块到内核主树"
