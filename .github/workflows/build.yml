@@ -72,18 +72,20 @@ jobs:
             extern void ksu_lsm_hook_exit(void);' KernelSU/kernel/core/init.c
             echo "自动补全 init.c 函数声明成功"
           fi
-          # 2.5. 直接将 init.c 中未定义的两个初始化/退出函数调用注释掉，彻底根治隐式声明报错
+          # 2.0.1. 直接将 init.c 中未定义的两个初始化/退出函数调用注释掉，彻底根治隐式声明报错
           if [ -f "KernelSU/kernel/core/init.c" ]; then
             sed -i 's/\(ksu_app_profile_init();\)/\/\* \1 \*\//g' KernelSU/kernel/core/init.c
             sed -i 's/\(ksu_lsm_hook_exit();\)/\/\* \1 \*\//g' KernelSU/kernel/core/init.c
             echo "成功注释掉 init.c 中未定义的函数调用"
           fi
 
-          # 3. 自动为 kernel_umount.c 补充缺失的内核底层头文件与 feature 头文件
+          echo "========================================"
+          echo "2.0.2 彻底禁用在 5.4 内核上不兼容的 kernel_umount.c"
+          echo "========================================"
           if [ -f "KernelSU/kernel/feature/kernel_umount.c" ]; then
-            sed -i '1i #include <linux/path.h>\n#include <linux/namei.h>\n#include <linux/cred.h>\n#include <linux/sched.h>\n#include <linux/fs.h>\n#include <linux/mount.h>\n#include "../include/feature.h"' KernelSU/kernel/feature/kernel_umount.c
-            echo "自动补全 kernel_umount.c 缺失的头文件成功"
-          fi          
+            > KernelSU/kernel/feature/kernel_umount.c
+            echo "已清空不兼容的 kernel_umount.c，跳过编译错误"
+          fi
           
           echo "========================================"
           echo "3. 注入 SUSFS 模块到内核主树"
