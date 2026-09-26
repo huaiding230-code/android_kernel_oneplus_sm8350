@@ -39,22 +39,20 @@ jobs:
           cd kernel_source
           
           echo "========================================"
-          echo "1. 拉取 SukiSU Ultra (builtin 分支) 与 susfs 源码"
+          echo "1. 执行 setup.sh 并传入你的分支参数"
           echo "========================================"
-          # 直接拉取你的 builtin 分支到 KernelSU 目录
-          git clone --depth=1 https://github.com/huaiding230-code/SukiSU-Ultra.git KernelSU
-          # 拉取 susfs 源码到临时目录备用
+          # 如果你的代码在 main 分支，就传 main；如果是其他分支就传对应名字
+          # 这样 setup.sh 就会自动处理克隆、切换分支、建立软链接和修改 Makefile/Kconfig
+          bash KernelSU/kernel/setup.sh main
+          
+          echo "========================================"
+          echo "2. 注入 SUSFS 模块到内核主树"
+          echo "========================================"
+          mkdir -p fs include/linux
+          
+          # 克隆 susfs4ksu 源码并提取文件
           git clone --depth=1 https://github.com/huaiding230-code/susfs4ksu.git /tmp/susfs4ksu
           
-          echo "========================================"
-          echo "2. 执行 SukiSU setup.sh (builtin 模式)"
-          echo "========================================"
-          bash KernelSU/kernel/setup.sh
-          
-          echo "========================================"
-          echo "3. 从 susfs4ksu 动态查找并注入 SUSFS 模块"
-          echo "========================================"
-          # 动态寻找 susfs.c 复制到 fs/
           SUSFS_C=$(find /tmp/susfs4ksu -name "susfs.c" | head -n 1)
           if [ -n "$SUSFS_C" ]; then
             cp "$SUSFS_C" fs/
@@ -62,17 +60,15 @@ jobs:
             echo "[-] 错误: 未找到 susfs.c" && exit 1
           fi
           
-          # 动态寻找所有 susfs 头文件复制到 include/linux/
           find /tmp/susfs4ksu -name "susfs*.h" -exec cp {} include/linux/ \;
           
-          # 写入 Makefile 和 Kconfig 编译规则
           if ! grep -q "susfs.o" fs/Makefile; then
             echo "obj-\$(CONFIG_KSU_SUSFS) += susfs.o" >> fs/Makefile
           fi
           if ! grep -q "CONFIG_KSU_SUSFS" fs/Kconfig; then
             echo -e '\nconfig KSU_SUSFS\n\tbool "SUSFS support"\n\tdefault y\n' >> fs/Kconfig
           fi
-
+          
       - name: Build Integrated Kernel
         run: |
           set -euo pipefail
