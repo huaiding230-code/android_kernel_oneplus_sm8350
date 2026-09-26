@@ -42,7 +42,7 @@ jobs:
           echo "1. 拉取 SukiSU Ultra (builtin 分支) 与 susfs 源码"
           echo "========================================"
           # 直接拉取你的 builtin 分支到 KernelSU 目录
-          git clone --depth=1 -b test-branch https://github.com/huaiding230-code/SukiSU-Ultra.git KernelSU
+          git clone --depth=1 https://github.com/huaiding230-code/SukiSU-Ultra.git KernelSU
           # 拉取 susfs 源码到临时目录备用
           git clone --depth=1 https://github.com/huaiding230-code/susfs4ksu.git /tmp/susfs4ksu
           
