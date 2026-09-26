@@ -38,13 +38,13 @@ jobs:
         run: |
           set -euo pipefail
           cd "${GITHUB_WORKSPACE}/kernel_source"
-          echo "========================================"
-          echo "Integrating SukiSU Builtin"
-          echo "========================================"
           
-          curl -fsSL "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s builtin
+          # 直接克隆你自己的 test-branch 分支到 KernelSU 目录
+          git clone -b test-branch https://github.com/huaiding230-code/SukiSU-Ultra.git KernelSU
+
+          bash KernelSU/kernel/setup.sh builtin
           
-          if [ ! -d "KernelSU" ] || [ ! -f "KernelSU/kernel/Kconfig" ] || [ ! -L "drivers/kernelsu" ]; then
+          if [ ! -d "KernelSU" ] || [ ! -f "KernelSU/kernel/Kconfig" ]; then
             echo "ERROR: SukiSU integration failed."
             exit 1
           fi
@@ -70,28 +70,28 @@ jobs:
           
           echo "SUSFS source files copied."
 
-      # 6. 为 SukiSU/KernelSU 打对接 SUSFS 的补丁
-      - name: Apply SUSFS KernelSU Patch
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd "${GITHUB_WORKSPACE}/kernel_source"
-          echo "========================================"
-          echo "Applying SUSFS KernelSU patch"
-          echo "========================================"
+      # # 6. 为 SukiSU/KernelSU 打对接 SUSFS 的补丁
+      # - name: Apply SUSFS KernelSU Patch
+      #   shell: bash
+      #   run: |
+      #     set -euo pipefail
+      #     cd "${GITHUB_WORKSPACE}/kernel_source"
+      #     echo "========================================"
+      #     echo "Applying SUSFS KernelSU patch"
+      #     echo "========================================"
           
-          # 路径更新为你重构后的 patch/KernelSU/ 目录
-          KSU_PATCH="${GITHUB_WORKSPACE}/kernel_source/patch/KernelSU/10_enable_susfs_for_ksu.patch"
+      #     # 路径更新为你重构后的 patch/KernelSU/ 目录
+      #     KSU_PATCH="${GITHUB_WORKSPACE}/kernel_source/patch/KernelSU/10_enable_susfs_for_ksu.patch"
           
-          if [ -f "${KSU_PATCH}" ]; then
-            if git -C KernelSU apply --check "${KSU_PATCH}"; then
-              git -C KernelSU apply "${KSU_PATCH}"
-              echo "KernelSU SUSFS patch applied."
-            else
-              echo "ERROR: KernelSU SUSFS patch does not apply or is already applied."
-            fi
-          else
-            echo "KernelSU SUSFS patch not found. Skipping."
+      #     if [ -f "${KSU_PATCH}" ]; then
+      #       if git -C KernelSU apply --check "${KSU_PATCH}"; then
+      #         git -C KernelSU apply "${KSU_PATCH}"
+      #         echo "KernelSU SUSFS patch applied."
+      #       else
+      #         echo "ERROR: KernelSU SUSFS patch does not apply or is already applied."
+      #       fi
+      #     else
+      #       echo "KernelSU SUSFS patch not found. Skipping."
           fi
 
       # 7. 为内核底层文件打 SUSFS 核心补丁
