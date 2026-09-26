@@ -74,19 +74,31 @@ jobs:
             echo "已清空不兼容的 kernel_umount.c"
           fi
 
+      - name: Fix sulog.c missing headers via find
+        run: |
           echo "========================================"
-          echo "修补 sulog.c 缺失的头文件"
+          echo "用 find 动态寻址并修补 sulog.c"
           echo "========================================"
           if [ -f "drivers/kernelsu/feature/sulog.c" ]; then
+            # 1. 用 find 查找 feature.h 的真实路径
+            REAL_PATH=$(find drivers/kernelsu -name "feature.h" 2>/dev/null | head -n 1)
+
+            # 2. 生成基础类型头文件
             echo '#include <linux/types.h>' > /tmp/sulog_patch.c
             echo '#include <linux/kernel.h>' >> /tmp/sulog_patch.c
             echo '#include <linux/init.h>' >> /tmp/sulog_patch.c
-            echo '#include "feature.h"' >> /tmp/sulog_patch.c
             echo '#include "../include/ksu.h"' >> /tmp/sulog_patch.c
+
+            # 3. 如果找到了 feature.h，根据它与 sulog.c 的相对关系精准注入
+            if [ -n "$REAL_PATH" ]; then
+              # 替换前缀得到从 feature/ 目录出发的相对路径
+              REL_PATH=$(echo "$REAL_PATH" | sed 's|drivers/kernelsu/feature/||; s|drivers/kernelsu/|../|')
+              echo "#include \"$REL_PATH\"" >> /tmp/sulog_patch.c
+            fi
 
             cat drivers/kernelsu/feature/sulog.c >> /tmp/sulog_patch.c
             mv /tmp/sulog_patch.c drivers/kernelsu/feature/sulog.c
-            echo "已成功注入 sulog.c 基础头文件"
+            echo "已成功根据真实文件位置完成补丁"
           fi
   
           echo "========================================"
