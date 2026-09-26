@@ -92,7 +92,7 @@ jobs:
       #       fi
       #     else
       #       echo "KernelSU SUSFS patch not found. Skipping."
-          fi
+          # fi
 
       # 7. 为内核底层文件打 SUSFS 核心补丁
       - name: Apply SUSFS 5.4 Kernel Patch
