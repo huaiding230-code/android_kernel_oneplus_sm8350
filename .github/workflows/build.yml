@@ -62,6 +62,19 @@ jobs:
             echo "已成功修复 ksu.h 宏定义顺序与冲突"
           fi
 
+          # 精准修补 ksu.h 顶部的 KERNEL_VERSION 宏定义
+          if [ -f "drivers/kernelsu/include/ksu.h" ]; then
+            if ! grep -q "KERNEL_VERSION" "drivers/kernelsu/include/ksu.h"; then
+              {
+                echo "#ifndef KERNEL_VERSION"
+                echo "#define KERNEL_VERSION(a,b,c) (((a) << 16) + ((b) << 8) + (c))"
+                echo "#endif"
+                echo "#include <linux/version.h>"
+                cat drivers/kernelsu/include/ksu.h
+              } > drivers/kernelsu/include/ksu.h.tmp && mv drivers/kernelsu/include/ksu.h.tmp drivers/kernelsu/include/ksu.h
+            fi
+          fi
+
           # 处理 init.c 中未定义的函数调用
           if [ -f "drivers/kernelsu/core/init.c" ]; then
             sed -i 's/\(ksu_app_profile_init();\)/\/\* \1 \*\//g' drivers/kernelsu/core/init.c
@@ -74,6 +87,10 @@ jobs:
             echo "已清空不兼容的 kernel_umount.c"
           fi
 
+          # 1. 顺手把 feature.h 复制到 feature 目录，让 sulog.c 的 #include "feature.h" 直接生效
+          if [ -f "drivers/kernelsu/include/feature.h" ]; then
+            cp drivers/kernelsu/include/feature.h drivers/kernelsu/feature/
+          fi
           echo "========================================"
           echo "修补 sulog.c 缺失的头文件"
           echo "========================================"
