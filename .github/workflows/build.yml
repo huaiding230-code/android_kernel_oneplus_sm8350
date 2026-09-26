@@ -44,59 +44,35 @@ jobs:
           git clone --depth=1 https://github.com/huaiding230-code/SukiSU-Ultra KernelSU
           bash KernelSU/kernel/setup.sh main
   
-      - name: Patch KernelSU for Linux 5.4
+      - name: Standard Global Patch for SukiSU (Linux 5.4)
         run: |
           echo "========================================"
-          echo "1. 注入 Makefile 全局 Include 路径"
+          echo "应用 Makefile 全局参数与基础头文件强制注入"
           echo "========================================"
-          if [ -f "drivers/kernelsu/Makefile" ]; then
-            sed -i '1i ccflags-y += -I$(srctree)/$(src) -I$(srctree)/$(src)/core -I$(srctree)/$(src)/include -I$(srctree)/$(src)/feature' drivers/kernelsu/Makefile
-            echo "已成功注入 Makefile 全局头文件搜索路径"
+          KSU_MAKEFILE="drivers/kernelsu/Makefile"
+
+          if [ -f "$KSU_MAKEFILE" ]; then
+            # 1. [官方标准] 全局头文件搜索目录：自动覆盖 core/include/feature
+            sed -i '1i ccflags-y += -I$(srctree)/$(src) -I$(srctree)/$(src)/core -I$(srctree)/$(src)/include -I$(srctree)/$(src)/feature' "$KSU_MAKEFILE"
+
+            # 2. [核心一次性方案] 强制给所有 .c 文件预包含基础头文件
+            # 相当于给 kernelsu 目录下每一个 .c 文件顶端自动加了这三行 include
+            # 彻底根治 bool, u64, pr_info, __init 在任何文件中的缺失问题
+            sed -i '1i ccflags-y += -include linux/types.h -include linux/kernel.h -include linux/init.h' "$KSU_MAKEFILE"
           fi
 
           echo "========================================"
-          echo "2. 精准修补 ksu.h 头文件与宏定义"
+          echo "清理特定内核版本的宏与兼容性 Hook"
           echo "========================================"
+          # 3. 彻底删除 ksu.h 里冲突的 KERNEL_VERSION 宏
           if [ -f "drivers/kernelsu/include/ksu.h" ]; then
             sed -i '/#define KERNEL_VERSION/d' drivers/kernelsu/include/ksu.h
-
-            echo '#include <linux/version.h>' > /tmp/ksu_patch.h
-            echo '#ifndef KERNEL_VERSION' >> /tmp/ksu_patch.h
-            echo '#define KERNEL_VERSION(a,b,c) (((a) << 16) + ((b) << 8) + (c))' >> /tmp/ksu_patch.h
-            echo '#endif' >> /tmp/ksu_patch.h
-
-            cat drivers/kernelsu/include/ksu.h >> /tmp/ksu_patch.h
-            mv /tmp/ksu_patch.h drivers/kernelsu/include/ksu.h
-            echo "已成功修复 ksu.h 宏定义顺序与冲突"
           fi
 
-          echo "========================================"
-          echo "3. 修复 init.c 与清空不兼容组件"
-          echo "========================================"
+          # 4. 禁用 5.4 不支持的旧 Hook
           if [ -f "drivers/kernelsu/core/init.c" ]; then
             sed -i 's/\(ksu_app_profile_init();\)/\/\* \1 \*\//g' drivers/kernelsu/core/init.c
             sed -i 's/\(ksu_lsm_hook_exit();\)/\/\* \1 \*\//g' drivers/kernelsu/core/init.c
-            echo "已注释 init.c 未定义函数"
-          fi
-
-          if [ -f "drivers/kernelsu/feature/kernel_umount.c" ]; then
-            > drivers/kernelsu/feature/kernel_umount.c
-            echo "已清空不兼容的 kernel_umount.c"
-          fi
-
-          echo "========================================"
-          echo "4. 精简修补 sulog.c 基础头文件"
-          echo "========================================"
-          if [ -f "drivers/kernelsu/feature/sulog.c" ]; then
-            echo '#include <linux/types.h>' > /tmp/sulog_patch.c
-            echo '#include <linux/kernel.h>' >> /tmp/sulog_patch.c
-            echo '#include <linux/init.h>' >> /tmp/sulog_patch.c
-            echo '#include "feature.h"' >> /tmp/sulog_patch.c
-            echo '#include "ksu.h"' >> /tmp/sulog_patch.c
-
-            cat drivers/kernelsu/feature/sulog.c >> /tmp/sulog_patch.c
-            mv /tmp/sulog_patch.c drivers/kernelsu/feature/sulog.c
-            echo "已成功精简修补 sulog.c"
           fi
   
           echo "========================================"
