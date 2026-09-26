@@ -44,43 +44,50 @@ jobs:
           git clone --depth=1 https://github.com/huaiding230-code/SukiSU-Ultra KernelSU
           bash KernelSU/kernel/setup.sh main
   
-      - name: Strict Fix for SukiSU (Linux 5.4)
+      - name: Ultimate Fix for SukiSU (Linux 5.4)
         run: |
           echo "========================================"
-          echo "1. 末尾安全追加 Makefile 全局参数与头文件"
+          echo "1. 用 subdir-ccflags-y 递归注入 Makefile / Kbuild"
           echo "========================================"
-          KSU_MAKEFILE="drivers/kernelsu/Makefile"
-
-          if [ -f "$KSU_MAKEFILE" ]; then
-            # 使用 >> 追加到 Makefile 末尾，安全不触动顶部语法与注释
-            echo '' >> "$KSU_MAKEFILE"
-            echo '# SukiSU Linux 5.4 Global Flags' >> "$KSU_MAKEFILE"
-            echo 'ccflags-y += -I$(srctree)/$(src) -I$(srctree)/$(src)/core -I$(srctree)/$(src)/include -I$(srctree)/$(src)/feature -I$(srctree)/$(src)/hook -I$(srctree)/$(src)/selinux' >> "$KSU_MAKEFILE"
-            echo 'ccflags-y += -include linux/version.h -include linux/types.h -include linux/kernel.h -include linux/init.h' >> "$KSU_MAKEFILE"
-            echo "已成功追加 Makefile 全局预加载参数"
-          fi
+          # 遍历 drivers/kernelsu 下的 Makefile 与 Kbuild（解决 Kbuild 优先级与子目录失效问题）
+          for TARGET_FILE in "drivers/kernelsu/Makefile" "drivers/kernelsu/Kbuild"; do
+            if [ -f "$TARGET_FILE" ]; then
+              echo '' >> "$TARGET_FILE"
+              echo '# SukiSU Subdirectory Global Flags' >> "$TARGET_FILE"
+              # 关键：改用 subdir-ccflags-y 才能穿透到 core/、feature/、selinux/ 等子目录
+              echo 'subdir-ccflags-y += -I$(srctree)/$(src) -I$(srctree)/$(src)/core -I$(srctree)/$(src)/include -I$(srctree)/$(src)/feature -I$(srctree)/$(src)/hook -I$(srctree)/$(src)/selinux' >> "$TARGET_FILE"
+              echo 'subdir-ccflags-y += -include linux/version.h -include linux/types.h -include linux/kernel.h -include linux/init.h' >> "$TARGET_FILE"
+              echo "已成功更新 $TARGET_FILE"
+            fi
+          done
 
           echo "========================================"
-          echo "2. 移除 ksu.h 中与 version.h 冲突的重复宏"
+          echo "2. 确保 ksu.h 顶部优先加载 linux/version.h"
           echo "========================================"
           if [ -f "drivers/kernelsu/include/ksu.h" ]; then
-            # version.h 已提供 KERNEL_VERSION 宏，删除 ksu.h 里的定义防止重定义警告
+            # 删掉 ksu.h 内部冲突的重复宏定义
             sed -i '/#define KERNEL_VERSION/d' drivers/kernelsu/include/ksu.h
-            echo "已清理 ksu.h 重复的 KERNEL_VERSION 定义"
+
+            # 在 ksu.h 最顶端注入 #include <linux/version.h>，确保 LINUX_VERSION_CODE 永远存在
+            echo '#include <linux/version.h>' > /tmp/ksu_header.h
+            cat drivers/kernelsu/include/ksu.h >> /tmp/ksu_header.h
+            mv /tmp/ksu_header.h drivers/kernelsu/include/ksu.h
+            echo "已完成 ksu.h 头部强制注入"
           fi
 
           echo "========================================"
-          echo "3. 注释 init.c 中 5.4 不兼容函数与清空 umount"
+          echo "3. 注释 init.c 缺失函数与清空 umount"
           echo "========================================"
           if [ -f "drivers/kernelsu/core/init.c" ]; then
-            sed -i 's/.*ksu_app_profile_init.*/\/\/ &' drivers/kernelsu/core/init.c
-            sed -i 's/.*ksu_lsm_hook_exit.*/\/\/ &' drivers/kernelsu/core/init.c
-            echo "已屏蔽 init.c 缺失的函数调用"
+            # 兼容所有空格格式，准确注释 5.4 缺失的 Hook 函数
+            sed -i 's/ksu_app_profile_init();/\/\/ ksu_app_profile_init();/g' drivers/kernelsu/core/init.c
+            sed -i 's/ksu_lsm_hook_exit();/\/\/ ksu_lsm_hook_exit();/g' drivers/kernelsu/core/init.c
+            echo "已注释 init.c 不兼容函数"
           fi
 
           if [ -f "drivers/kernelsu/feature/kernel_umount.c" ]; then
             > drivers/kernelsu/feature/kernel_umount.c
-            echo "已清空 5.4 不兼容的 kernel_umount.c"
+            echo "已清空不兼容的 kernel_umount.c"
           fi
   
           echo "========================================"
