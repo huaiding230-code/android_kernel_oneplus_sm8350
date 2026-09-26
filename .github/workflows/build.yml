@@ -44,14 +44,22 @@ jobs:
           git clone --depth=1 https://github.com/huaiding230-code/SukiSU-Ultra KernelSU
           bash KernelSU/kernel/setup.sh main
   
+      - name: Patch KernelSU for Linux 5.4
+        run: |
+          echo "========================================"
+          echo "1. 注入 Makefile 全局 Include 路径"
+          echo "========================================"
+          if [ -f "drivers/kernelsu/Makefile" ]; then
+            sed -i '1i ccflags-y += -I$(srctree)/$(src) -I$(srctree)/$(src)/core -I$(srctree)/$(src)/include -I$(srctree)/$(src)/feature' drivers/kernelsu/Makefile
+            echo "已成功注入 Makefile 全局头文件搜索路径"
+          fi
+
           echo "========================================"
           echo "2. 精准修补 ksu.h 头文件与宏定义"
           echo "========================================"
           if [ -f "drivers/kernelsu/include/ksu.h" ]; then
-            # 1. 彻底删除 ksu.h 原文件里可能残留的 KERNEL_VERSION 定义
             sed -i '/#define KERNEL_VERSION/d' drivers/kernelsu/include/ksu.h
 
-            # 2. 先 #include <linux/version.h>，再用 #ifndef 做备用判断
             echo '#include <linux/version.h>' > /tmp/ksu_patch.h
             echo '#ifndef KERNEL_VERSION' >> /tmp/ksu_patch.h
             echo '#define KERNEL_VERSION(a,b,c) (((a) << 16) + ((b) << 8) + (c))' >> /tmp/ksu_patch.h
@@ -62,43 +70,33 @@ jobs:
             echo "已成功修复 ksu.h 宏定义顺序与冲突"
           fi
 
-          # 处理 init.c 中未定义的函数调用
+          echo "========================================"
+          echo "3. 修复 init.c 与清空不兼容组件"
+          echo "========================================"
           if [ -f "drivers/kernelsu/core/init.c" ]; then
             sed -i 's/\(ksu_app_profile_init();\)/\/\* \1 \*\//g' drivers/kernelsu/core/init.c
             sed -i 's/\(ksu_lsm_hook_exit();\)/\/\* \1 \*\//g' drivers/kernelsu/core/init.c
+            echo "已注释 init.c 未定义函数"
           fi
 
-          # 彻底清空 5.4 内核不兼容的挂载文件
           if [ -f "drivers/kernelsu/feature/kernel_umount.c" ]; then
             > drivers/kernelsu/feature/kernel_umount.c
             echo "已清空不兼容的 kernel_umount.c"
           fi
 
-      - name: Fix sulog.c missing headers via find
-        run: |
           echo "========================================"
-          echo "用 find 动态寻址并修补 sulog.c"
+          echo "4. 精简修补 sulog.c 基础头文件"
           echo "========================================"
           if [ -f "drivers/kernelsu/feature/sulog.c" ]; then
-            # 1. 用 find 查找 feature.h 的真实路径
-            REAL_PATH=$(find drivers/kernelsu -name "feature.h" 2>/dev/null | head -n 1)
-
-            # 2. 生成基础类型头文件
             echo '#include <linux/types.h>' > /tmp/sulog_patch.c
             echo '#include <linux/kernel.h>' >> /tmp/sulog_patch.c
             echo '#include <linux/init.h>' >> /tmp/sulog_patch.c
-            echo '#include "../include/ksu.h"' >> /tmp/sulog_patch.c
-
-            # 3. 如果找到了 feature.h，根据它与 sulog.c 的相对关系精准注入
-            if [ -n "$REAL_PATH" ]; then
-              # 替换前缀得到从 feature/ 目录出发的相对路径
-              REL_PATH=$(echo "$REAL_PATH" | sed 's|drivers/kernelsu/feature/||; s|drivers/kernelsu/|../|')
-              echo "#include \"$REL_PATH\"" >> /tmp/sulog_patch.c
-            fi
+            echo '#include "feature.h"' >> /tmp/sulog_patch.c
+            echo '#include "ksu.h"' >> /tmp/sulog_patch.c
 
             cat drivers/kernelsu/feature/sulog.c >> /tmp/sulog_patch.c
             mv /tmp/sulog_patch.c drivers/kernelsu/feature/sulog.c
-            echo "已成功根据真实文件位置完成补丁"
+            echo "已成功精简修补 sulog.c"
           fi
   
           echo "========================================"
