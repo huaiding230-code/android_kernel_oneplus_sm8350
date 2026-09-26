@@ -93,62 +93,64 @@ jobs:
           )
 
           echo "========================================"
-          echo "1. Loading Defconfig"
+          echo "1. 清理输出目录"
+          echo "========================================"
+
+          make "${MAKE_ARGS[@]}" mrproper
+
+          echo "========================================"
+          echo "2. 加载 Defconfig"
           echo "========================================"
 
           make "${MAKE_ARGS[@]}" "${DEFCONFIG}"
 
-          echo "========================================"
-          echo "2. Enabling SukiSU Builtin"
-          echo "========================================"
+          CONFIG_FILE="${OUT_DIR}/.config"
 
-          CONFIG_SCRIPT="./scripts/config"
-
-          if [ ! -f "${CONFIG_SCRIPT}" ]; then
-            echo "ERROR: scripts/config not found."
+          if [ ! -f "${CONFIG_FILE}" ]; then
+            echo "ERROR: .config not found."
             exit 1
           fi
 
-          chmod +x "${CONFIG_SCRIPT}"
+          echo "========================================"
+          echo "3. 启用 SukiSU Builtin"
+          echo "========================================"
 
-          # SukiSU Builtin
-          "${CONFIG_SCRIPT}" --enable CONFIG_KSU
+          # 你的源码没有 scripts/config，
+          # 所以直接修改输出目录中的 .config。
 
-          # 确保没有残留 SUSFS 配置
-          "${CONFIG_SCRIPT}" --disable CONFIG_KSU_SUSFS || true
-          "${CONFIG_SCRIPT}" --disable CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT || true
+          if grep -q '^CONFIG_KSU=' "${CONFIG_FILE}"; then
+            sed -i 's/^CONFIG_KSU=.*/CONFIG_KSU=y/' "${CONFIG_FILE}"
+          elif grep -q '^# CONFIG_KSU is not set' "${CONFIG_FILE}"; then
+            sed -i 's/^# CONFIG_KSU is not set/CONFIG_KSU=y/' "${CONFIG_FILE}"
+          else
+            echo 'CONFIG_KSU=y' >> "${CONFIG_FILE}"
+          fi
 
           echo "========================================"
-          echo "3. Updating Kernel Configuration"
+          echo "4. 重新处理内核配置"
           echo "========================================"
 
           make "${MAKE_ARGS[@]}" olddefconfig
 
           echo "========================================"
-          echo "4. Checking Final Configuration"
+          echo "5. 检查 SukiSU 配置"
           echo "========================================"
 
-          grep -E \
-            '^(CONFIG_KSU=|CONFIG_KSU_)' \
-            "${OUT_DIR}/.config" || true
+          grep -E '^CONFIG_KSU=' "${CONFIG_FILE}" || true
 
-          if ! grep -q '^CONFIG_KSU=y' "${OUT_DIR}/.config"; then
+          if ! grep -q '^CONFIG_KSU=y' "${CONFIG_FILE}"; then
             echo "ERROR: CONFIG_KSU=y is missing."
-            exit 1
-          fi
-
-          if grep -q '^CONFIG_KSU_SUSFS=y' "${OUT_DIR}/.config"; then
-            echo "ERROR: SUSFS is unexpectedly enabled."
             exit 1
           fi
 
           echo "SukiSU Builtin configuration passed."
 
           echo "========================================"
-          echo "5. Building Kernel"
+          echo "6. 编译内核"
           echo "========================================"
 
           make "${MAKE_ARGS[@]}" -j"$(nproc)"
+
 
       - name: Pack with AnyKernel3
         shell: bash
