@@ -46,39 +46,27 @@ jobs:
           echo "========================================"
           echo "2. 修复 KernelSU 头文件路径与兼容性问题"
           echo "========================================"
-          # A. 在 Makefile 中注入全局预包含参数，强行给所有文件预装基础数据类型
-          if [ -f "drivers/kernelsu/Makefile" ]; then
-            echo 'ccflags-y += -I$(srctree)/$(src)/include -I$(srctree)/$(src)/include/uapi -I$(srctree)/$(src)/feature -include linux/types.h -include linux/kernel.h -include linux/printk.h -include linux/version.h' >> drivers/kernelsu/Makefile
-          fi
+          # A. 遍历递归给 drivers/kernelsu 下的所有 Makefile（包括 feature/Makefile）都注入全局头文件路径
+          find drivers/kernelsu -name "Makefile" | while read -r mk; do
+            echo 'ccflags-y += -I$(srctree)/$(src) -I$(srctree)/$(src)/../include -I$(srctree)/$(src)/../include/uapi -I$(srctree)/$(src)/../feature -include linux/types.h -include linux/kernel.h -include linux/printk.h -include linux/version.h' >> "$mk"
+          done
   
           # B. 同步 feature.h 到 feature 目录
-          if [ -f "drivers/kernelsu/include/uapi/feature.h" ]; then
-            cp drivers/kernelsu/include/uapi/feature.h drivers/kernelsu/feature/
-          elif [ -f "drivers/kernelsu/include/feature.h" ]; then
-            cp drivers/kernelsu/include/feature.h drivers/kernelsu/feature/
-          elif [ -f "KernelSU/kernel/include/uapi/feature.h" ]; then
-            cp KernelSU/kernel/include/uapi/feature.h drivers/kernelsu/feature/
-          fi
+          mkdir -p drivers/kernelsu/feature
+          [ -f "drivers/kernelsu/include/uapi/feature.h" ] && cp drivers/kernelsu/include/uapi/feature.h drivers/kernelsu/feature/
+          [ -f "drivers/kernelsu/include/feature.h" ] && cp drivers/kernelsu/include/feature.h drivers/kernelsu/feature/
   
-          # C. 专门给裸写的 sulog.c 顶端补全基础头文件和 feature.h
+          # C. 强制在 sulog.c 第一行硬插入基础依赖（不再用判断，直接写入）
           if [ -f "drivers/kernelsu/feature/sulog.c" ]; then
-            if ! grep -q "linux/types.h" "drivers/kernelsu/feature/sulog.c"; then
-              echo -e '#include <linux/types.h>\n#include <linux/kernel.h>\n#include <linux/printk.h>\n#include <linux/version.h>\n#include "feature.h"' | cat - drivers/kernelsu/feature/sulog.c > drivers/kernelsu/feature/sulog.c.tmp && mv drivers/kernelsu/feature/sulog.c.tmp drivers/kernelsu/feature/sulog.c
-              echo "已成功为 sulog.c 补全基础头文件与 feature.h"
-            fi
+            sed -i '1i #include <linux/types.h>\n#include <linux/kernel.h>\n#include <linux/printk.h>\n#include <linux/version.h>\n#include "feature.h"' drivers/kernelsu/feature/sulog.c
           fi
   
-          # D. 强制在 ksu.h 和 selinux.h 最顶端注入 linux/version.h
+          # D. 强制在 ksu.h 和 selinux.h 顶部注入 linux/version.h
           if [ -f "drivers/kernelsu/include/ksu.h" ]; then
-            if ! grep -q "linux/version.h" "drivers/kernelsu/include/ksu.h"; then
-              echo '#include <linux/version.h>' | cat - drivers/kernelsu/include/ksu.h > drivers/kernelsu/include/ksu.h.tmp && mv drivers/kernelsu/include/ksu.h.tmp drivers/kernelsu/include/ksu.h
-            fi
+            sed -i '1i #include <linux/version.h>' drivers/kernelsu/include/ksu.h
           fi
-  
           if [ -f "drivers/kernelsu/selinux/selinux.h" ]; then
-            if ! grep -q "linux/version.h" "drivers/kernelsu/selinux/selinux.h"; then
-              echo '#include <linux/version.h>' | cat - drivers/kernelsu/selinux/selinux.h > drivers/kernelsu/selinux/selinux.h.tmp && mv drivers/kernelsu/selinux/selinux.h.tmp drivers/kernelsu/selinux/selinux.h
-            fi
+            sed -i '1i #include <linux/version.h>' drivers/kernelsu/selinux/selinux.h
           fi
   
           # E. 注释 init.c 中未定义的函数调用
