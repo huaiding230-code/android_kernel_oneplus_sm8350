@@ -50,33 +50,41 @@ jobs:
           bash KernelSU/kernel/setup.sh main
 
           echo "========================================"
-          echo "2.1 全局修正：对 drivers/kernelsu 目录进行通扫补全"
+          echo "2.1 终极全局修正：全盘补全头文件与 KERNEL_VERSION 兜底宏"
           echo "========================================"
-          # 1. 统一对实际参与编译的 drivers/kernelsu 下所有 C/H 文件通扫头文件
+          # 1. 确保 drivers/kernelsu 下所有 C 和 H 文件顶部都有 linux/version.h
           find drivers/kernelsu -type f \( -name "*.c" -o -name "*.h" \) | while read -r file; do
-            # 补全 version.h
-            if grep -q -E "LINUX_VERSION_CODE|KERNEL_VERSION" "$file" && ! grep -q "linux/version.h" "$file"; then
+            if ! grep -q "linux/version.h" "$file"; then
               sed -i '1i #include <linux/version.h>' "$file"
             fi
             
-            # 补全底层类型与打印头文件
+            # 顺便补全基础类型头文件
             if grep -q -E "\b(bool|u64|u32|u16|u8|pr_info|pr_err|pr_warn)\b" "$file" && ! grep -q "linux/types.h" "$file"; then
               sed -i '1i #include <linux/types.h>\n#include <linux/printk.h>' "$file"
             fi
             
-            # 补全 feature.h (针对 feature 目录下的所有模块文件)
+            # 补全 feature.h
             if [[ "$file" == *"feature/"* ]] && ! grep -q "feature.h" "$file" && [[ "$file" != *"include/"* ]]; then
               sed -i '1i #include "../include/feature.h"' "$file"
             fi
           done
 
-          # 2. 处理 init.c 中未定义的函数调用
+          # 2. 在 ksu.h 中强制注入 KERNEL_VERSION 安全兜底宏，彻底解决 Clang -Wundef 报错
+          if [ -f "drivers/kernelsu/include/ksu.h" ]; then
+            if ! grep -q "KERNEL_VERSION(" "drivers/kernelsu/include/ksu.h"; then
+              sed -i '/#include <linux\/version.h>/a \
+              #ifndef KERNEL_VERSION\n#define KERNEL_VERSION(a,b,c) (((a) << 16) + ((b) << 8) + (c))\n#endif' drivers/kernelsu/include/ksu.h
+              echo "已在 ksu.h 中注入 KERNEL_VERSION 兜底宏"
+            fi
+          fi
+
+          # 3. 处理 init.c 中未定义的函数调用
           if [ -f "drivers/kernelsu/core/init.c" ]; then
             sed -i 's/\(ksu_app_profile_init();\)/\/\* \1 \*\//g' drivers/kernelsu/core/init.c
             sed -i 's/\(ksu_lsm_hook_exit();\)/\/\* \1 \*\//g' drivers/kernelsu/core/init.c
           fi
 
-          # 3. 彻底清空 5.4 内核不兼容的 kernel_umount.c
+          # 4. 彻底清空 5.4 内核不兼容的 kernel_umount.c
           if [ -f "drivers/kernelsu/feature/kernel_umount.c" ]; then
             > drivers/kernelsu/feature/kernel_umount.c
             echo "已清空不兼容的 kernel_umount.c"
