@@ -39,26 +39,27 @@ jobs:
           cd kernel_source
           
           echo "========================================"
-          echo "1. 拉取 SukiSU Ultra (builtin 分支) 与 susfs 源码"
+          echo "1. 拉取 SukiSU Ultra (test-branch 分支) 与 susfs 源码"
           echo "========================================"
-          # 直接拉取你的 builtin 分支到 KernelSU 目录
+          # 克隆你个人仓库的 test-branch 分支到 KernelSU 目录
           git clone --depth=1 -b test-branch https://github.com/huaiding230-code/SukiSU-Ultra.git KernelSU
-          # 拉取 susfs 源码到临时目录备用
+          # 拉取 susfs 源码到临时目录
           git clone --depth=1 https://github.com/huaiding230-code/susfs4ksu.git /tmp/susfs4ksu
           
           echo "========================================"
-          echo "2. 执行 SukiSU setup.sh (builtin 模式)"
+          echo "2. 执行 setup.sh 建立驱动软链接与基础挂载"
           echo "========================================"
-          bash KernelSU/kernel/setup.sh builtin
+          # 不传 builtin 参数，防止 setup.sh 去强行切不存在的分支
+          bash KernelSU/kernel/setup.sh
           
           echo "========================================"
-          echo "3. 注入 SUSFS 模块到内核主树"
+          echo "3. 注入 SUSFS 模块到内核主树 (这段千万不能删！)"
           echo "========================================"
           # 复制 susfs 的核心 C 源码和头文件
           cp /tmp/susfs4ksu/susfs.c fs/
           cp /tmp/susfs4ksu/susfs*.h include/linux/
           
-          # 直接在 Makefile 和 Kconfig 中追加配置（替代容易报错的 patch）
+          # 向 Makefile 和 Kconfig 中追加 SUSFS 编译规则
           if ! grep -q "susfs.o" fs/Makefile; then
             echo "obj-\$(CONFIG_KSU_SUSFS) += susfs.o" >> fs/Makefile
           fi
