@@ -158,6 +158,12 @@ jobs:
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_OPEN_REDIRECT
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SPOOF_CPU
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SELINUX_HIDE
+
+            # --- 禁用调试信息以大幅加快编译速度 ---
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --disable CONFIG_DEBUG_INFO
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --disable CONFIG_DEBUG_INFO_DWARF4
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_DEBUG_INFO_NONE
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --disable CONFIG_DEBUG_INFO_BTF
           fi
 
           # 统一刷新并生成最终的 autoconf.h 头文件
