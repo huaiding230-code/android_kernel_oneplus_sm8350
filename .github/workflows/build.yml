@@ -43,6 +43,12 @@ jobs:
           echo "========================================"
           git clone --depth=1 https://github.com/huaiding230-code/SukiSU-Ultra KernelSU
           bash KernelSU/kernel/setup.sh main
+
+          # 终极修正：将 feature/ 目录下所有文件的 #include "feature.h" 修正为正确的相对路径
+          find drivers/kernelsu/feature -type f \( -name "*.c" -o -name "*.h" \) | while read -r file; do
+            sed -i 's/#include "feature.h"/#include "..\/include\/feature.h"/g' "$file"
+          done
+          echo "已将 feature/ 目录下的头文件引用路径全部修正完毕"
   
           echo "========================================"
           echo "2. 精准修补 ksu.h 头文件与宏定义"
