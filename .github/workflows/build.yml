@@ -46,9 +46,9 @@ jobs:
           echo "========================================"
           echo "2. 修复 KernelSU 头文件路径与兼容性问题"
           echo "========================================"
-          # A. 在 Makefile 中强制注入全局包含头文件与版本定义，解决全局 -Wundef 报错
+          # A. 在 Makefile 中注入全局预包含参数，强行给所有文件预装基础数据类型
           if [ -f "drivers/kernelsu/Makefile" ]; then
-            echo 'ccflags-y += -I$(srctree)/$(src)/include -I$(srctree)/$(src)/include/uapi -I$(srctree)/$(src)/feature -include linux/version.h' >> drivers/kernelsu/Makefile
+            echo 'ccflags-y += -I$(srctree)/$(src)/include -I$(srctree)/$(src)/include/uapi -I$(srctree)/$(src)/feature -include linux/types.h -include linux/kernel.h -include linux/printk.h -include linux/version.h' >> drivers/kernelsu/Makefile
           fi
   
           # B. 同步 feature.h 到 feature 目录
@@ -60,7 +60,15 @@ jobs:
             cp KernelSU/kernel/include/uapi/feature.h drivers/kernelsu/feature/
           fi
   
-          # C. 强制在 ksu.h 和 selinux.h 最顶端注入 linux/version.h
+          # C. 专门给裸写的 sulog.c 顶端补全基础头文件和 feature.h
+          if [ -f "drivers/kernelsu/feature/sulog.c" ]; then
+            if ! grep -q "linux/types.h" "drivers/kernelsu/feature/sulog.c"; then
+              echo -e '#include <linux/types.h>\n#include <linux/kernel.h>\n#include <linux/printk.h>\n#include <linux/version.h>\n#include "feature.h"' | cat - drivers/kernelsu/feature/sulog.c > drivers/kernelsu/feature/sulog.c.tmp && mv drivers/kernelsu/feature/sulog.c.tmp drivers/kernelsu/feature/sulog.c
+              echo "已成功为 sulog.c 补全基础头文件与 feature.h"
+            fi
+          fi
+  
+          # D. 强制在 ksu.h 和 selinux.h 最顶端注入 linux/version.h
           if [ -f "drivers/kernelsu/include/ksu.h" ]; then
             if ! grep -q "linux/version.h" "drivers/kernelsu/include/ksu.h"; then
               echo '#include <linux/version.h>' | cat - drivers/kernelsu/include/ksu.h > drivers/kernelsu/include/ksu.h.tmp && mv drivers/kernelsu/include/ksu.h.tmp drivers/kernelsu/include/ksu.h
@@ -73,13 +81,13 @@ jobs:
             fi
           fi
   
-          # D. 注释 init.c 中未定义的函数调用
+          # E. 注释 init.c 中未定义的函数调用
           if [ -f "drivers/kernelsu/core/init.c" ]; then
             sed -i 's/\(ksu_app_profile_init();\)/\/\* \1 \*\//g' drivers/kernelsu/core/init.c
             sed -i 's/\(ksu_lsm_hook_exit();\)/\/\* \1 \*\//g' drivers/kernelsu/core/init.c
           fi
   
-          # E. 清空 5.4 内核不兼容的 kernel_umount.c
+          # F. 清空 5.4 内核不兼容的 kernel_umount.c
           if [ -f "drivers/kernelsu/feature/kernel_umount.c" ]; then
             > drivers/kernelsu/feature/kernel_umount.c
           fi
