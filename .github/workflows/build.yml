@@ -46,12 +46,12 @@ jobs:
           echo "========================================"
           echo "2. 修复 KernelSU 头文件路径与兼容性问题"
           echo "========================================"
-          # A. 为 Makefile 注入全局 include 和 include/uapi 头文件搜索路径
+          # A. 在 Makefile 中强制注入全局包含头文件与版本定义，解决全局 -Wundef 报错
           if [ -f "drivers/kernelsu/Makefile" ]; then
-            echo 'ccflags-y += -I$(srctree)/$(src)/include -I$(srctree)/$(src)/include/uapi -I$(srctree)/$(src)/feature' >> drivers/kernelsu/Makefile
+            echo 'ccflags-y += -I$(srctree)/$(src)/include -I$(srctree)/$(src)/include/uapi -I$(srctree)/$(src)/feature -include linux/version.h' >> drivers/kernelsu/Makefile
           fi
   
-          # B. 精准找到真正的 feature.h 并复制到 feature/ 目录 (完美解决 sulog.c 找不到 feature.h)
+          # B. 同步 feature.h 到 feature 目录
           if [ -f "drivers/kernelsu/include/uapi/feature.h" ]; then
             cp drivers/kernelsu/include/uapi/feature.h drivers/kernelsu/feature/
           elif [ -f "drivers/kernelsu/include/feature.h" ]; then
@@ -60,16 +60,16 @@ jobs:
             cp KernelSU/kernel/include/uapi/feature.h drivers/kernelsu/feature/
           fi
   
-          # C. 修复 ksu.h 顶部的 KERNEL_VERSION 宏定义 (彻底解决 -Wundef 报错)
+          # C. 强制在 ksu.h 和 selinux.h 最顶端注入 linux/version.h
           if [ -f "drivers/kernelsu/include/ksu.h" ]; then
-            if ! grep -q "KERNEL_VERSION" "drivers/kernelsu/include/ksu.h"; then
-              {
-                echo "#ifndef KERNEL_VERSION"
-                echo "#define KERNEL_VERSION(a,b,c) (((a) << 16) + ((b) << 8) + (c))"
-                echo "#endif"
-                echo "#include <linux/version.h>"
-                cat drivers/kernelsu/include/ksu.h
-              } > drivers/kernelsu/include/ksu.h.tmp && mv drivers/kernelsu/include/ksu.h.tmp drivers/kernelsu/include/ksu.h
+            if ! grep -q "linux/version.h" "drivers/kernelsu/include/ksu.h"; then
+              echo '#include <linux/version.h>' | cat - drivers/kernelsu/include/ksu.h > drivers/kernelsu/include/ksu.h.tmp && mv drivers/kernelsu/include/ksu.h.tmp drivers/kernelsu/include/ksu.h
+            fi
+          fi
+  
+          if [ -f "drivers/kernelsu/selinux/selinux.h" ]; then
+            if ! grep -q "linux/version.h" "drivers/kernelsu/selinux/selinux.h"; then
+              echo '#include <linux/version.h>' | cat - drivers/kernelsu/selinux/selinux.h > drivers/kernelsu/selinux/selinux.h.tmp && mv drivers/kernelsu/selinux/selinux.h.tmp drivers/kernelsu/selinux/selinux.h
             fi
           fi
   
