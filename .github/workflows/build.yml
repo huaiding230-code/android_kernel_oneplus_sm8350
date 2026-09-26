@@ -44,31 +44,14 @@ jobs:
           git clone --depth=1 https://github.com/huaiding230-code/SukiSU-Ultra KernelSU
           bash KernelSU/kernel/setup.sh main
 
-          # 终极修正：将 feature/ 目录下所有文件的 #include "feature.h" 修正为正确的相对路径
-          find drivers/kernelsu/feature -type f \( -name "*.c" -o -name "*.h" \) | while read -r file; do
-            sed -i 's/#include "feature.h"/#include "..\/include\/feature.h"/g' "$file"
-          done
-          echo "已将 feature/ 目录下的头文件引用路径全部修正完毕"
-  
-          echo "========================================"
-          echo "2. 精准修补 ksu.h 头文件与宏定义"
-          echo "========================================"
-          if [ -f "drivers/kernelsu/include/ksu.h" ]; then
-            # 1. 彻底删除 ksu.h 原文件里可能残留的 KERNEL_VERSION 定义
-            sed -i '/#define KERNEL_VERSION/d' drivers/kernelsu/include/ksu.h
-
-            # 2. 先 #include <linux/version.h>，再用 #ifndef 做备用判断
-            echo '#include <linux/version.h>' > /tmp/ksu_patch.h
-            echo '#ifndef KERNEL_VERSION' >> /tmp/ksu_patch.h
-            echo '#define KERNEL_VERSION(a,b,c) (((a) << 16) + ((b) << 8) + (c))' >> /tmp/ksu_patch.h
-            echo '#endif' >> /tmp/ksu_patch.h
-
-            cat drivers/kernelsu/include/ksu.h >> /tmp/ksu_patch.h
-            mv /tmp/ksu_patch.h drivers/kernelsu/include/ksu.h
-            echo "已成功修复 ksu.h 宏定义顺序与冲突"
+          # 1. 全局动态查找 feature.h，不管它藏在哪，直接复制到 feature 目录下
+          FEATURE_H_PATH=$(find drivers/kernelsu KernelSU -name "feature.h" 2>/dev/null | head -n 1)
+          if [ -n "$FEATURE_H_PATH" ]; then
+            cp "$FEATURE_H_PATH" drivers/kernelsu/feature/
+            echo "已成功找到并同步 feature.h: $FEATURE_H_PATH -> drivers/kernelsu/feature/"
           fi
 
-          # 精准修补 ksu.h 顶部的 KERNEL_VERSION 宏定义
+          # 2. 精准修复 ksu.h 顶部的 KERNEL_VERSION 宏定义
           if [ -f "drivers/kernelsu/include/ksu.h" ]; then
             if ! grep -q "KERNEL_VERSION" "drivers/kernelsu/include/ksu.h"; then
               {
@@ -78,38 +61,20 @@ jobs:
                 echo "#include <linux/version.h>"
                 cat drivers/kernelsu/include/ksu.h
               } > drivers/kernelsu/include/ksu.h.tmp && mv drivers/kernelsu/include/ksu.h.tmp drivers/kernelsu/include/ksu.h
+              echo "已成功修复 ksu.h"
             fi
           fi
 
-          # 处理 init.c 中未定义的函数调用
+          # 3. 处理 init.c 中未定义的函数调用
           if [ -f "drivers/kernelsu/core/init.c" ]; then
             sed -i 's/\(ksu_app_profile_init();\)/\/\* \1 \*\//g' drivers/kernelsu/core/init.c
             sed -i 's/\(ksu_lsm_hook_exit();\)/\/\* \1 \*\//g' drivers/kernelsu/core/init.c
           fi
 
-          # 彻底清空 5.4 内核不兼容的挂载文件
+          # 4. 彻底清空 5.4 内核不兼容的 kernel_umount.c
           if [ -f "drivers/kernelsu/feature/kernel_umount.c" ]; then
             > drivers/kernelsu/feature/kernel_umount.c
             echo "已清空不兼容的 kernel_umount.c"
-          fi
-
-          # 1. 顺手把 feature.h 复制到 feature 目录，让 sulog.c 的 #include "feature.h" 直接生效
-          if [ -f "drivers/kernelsu/include/feature.h" ]; then
-            cp drivers/kernelsu/include/feature.h drivers/kernelsu/feature/
-          fi
-          echo "========================================"
-          echo "修补 sulog.c 缺失的头文件"
-          echo "========================================"
-          if [ -f "drivers/kernelsu/feature/sulog.c" ]; then
-            echo '#include <linux/types.h>' > /tmp/sulog_patch.c
-            echo '#include <linux/kernel.h>' >> /tmp/sulog_patch.c
-            echo '#include <linux/init.h>' >> /tmp/sulog_patch.c
-            echo '#include "feature.h"' >> /tmp/sulog_patch.c
-            echo '#include "../include/ksu.h"' >> /tmp/sulog_patch.c
-
-            cat drivers/kernelsu/feature/sulog.c >> /tmp/sulog_patch.c
-            mv /tmp/sulog_patch.c drivers/kernelsu/feature/sulog.c
-            echo "已成功注入 sulog.c 基础头文件"
           fi
   
           echo "========================================"
