@@ -51,6 +51,7 @@ jobs:
           mkdir -p fs include/linux
           
           # 克隆 susfs4ksu 源码并提取文件
+          rm -rf /tmp/susfs4ksu
           git clone --depth=1 https://github.com/huaiding230-code/susfs4ksu.git /tmp/susfs4ksu
           
           SUSFS_C=$(find /tmp/susfs4ksu -name "susfs.c" | head -n 1)
@@ -67,6 +68,18 @@ jobs:
           fi
           if ! grep -q "CONFIG_KSU_SUSFS" fs/Kconfig; then
             echo -e '\nconfig KSU_SUSFS\n\tbool "SUSFS support"\n\tdefault y\n' >> fs/Kconfig
+          fi
+
+          echo "========================================"
+          echo "4. 为 SukiSU (KernelSU) 打上 SUSFS 对接补丁"
+          echo "========================================"
+          # 寻找 susfs4ksu 中针对 KernelSU 的补丁文件并应用到 KernelSU 目录
+          KSU_PATCH=$(find /tmp/susfs4ksu -name "*ksu*.patch" -o -name "*KernelSU*.patch" | head -n 1)
+          if [ -n "$KSU_PATCH" ] && [ -f "$KSU_PATCH" ]; then
+            echo "找到 KernelSU 补丁: $KSU_PATCH"
+            git -C KernelSU apply "$KSU_PATCH" || git -C KernelSU apply --REJECT "$KSU_PATCH" || echo "警告: 补丁应用可能存在部分冲突，继续构建"
+          else
+            echo "提示: 未找到专用的 KernelSU 补丁，跳过..."
           fi
           
       - name: Build Integrated Kernel
