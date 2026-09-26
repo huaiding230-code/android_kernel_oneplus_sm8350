@@ -50,13 +50,26 @@ jobs:
           bash KernelSU/kernel/setup.sh main
 
           echo "========================================"
-          echo "2.1 修复 ksu.h、selinux.h、init.c 缺少 version.h 的问题"
+          echo "2.1 智能自动化扫描并补全缺失的头文件"
           echo "========================================"
-          sed -i '1i #include <linux/version.h>' KernelSU/kernel/include/ksu.h
-          sed -i '1i #include <linux/version.h>' KernelSU/kernel/selinux/selinux.h
-          sed -i '1i #include <linux/version.h>' KernelSU/kernel/core/init.c
-          sed -i '/#include/a void ksu_app_profile_init(void);\nvoid ksu_lsm_hook_exit(void);' KernelSU/kernel/core/init.c
-          sed -i '1i #include <linux/types.h>\n#include <linux/printk.h>' KernelSU/kernel/feature/kernel_umount.c
+          find KernelSU/kernel -type f \( -name "*.c" -o -name "*.h" \) | while read -r file; do
+            # 1. 如果文件用到了内核版本宏，但没引入 version.h，则自动在第一行补上
+            if grep -q -E "LINUX_VERSION_CODE|KERNEL_VERSION" "$file" && ! grep -q "linux/version.h" "$file"; then
+              sed -i '1i #include <linux/version.h>' "$file"
+              echo "自动补全 version.h -> $file"
+            fi
+            
+            # 2. 如果文件用到了底层类型/打印函数（如 bool, u64, pr_info）但没引入 types.h，自动补上
+            if grep -q -E "bool|u64|pr_info" "$file" && ! grep -q "linux/types.h" "$file" && [[ "$file" == *"feature/"* || "$file" == *"core/"* ]]; then
+              sed -i '1i #include <linux/types.h>\n#include <linux/printk.h>' "$file"
+              echo "自动补全 types.h & printk.h -> $file"
+            fi
+          done
+
+          # 3. 检查并补充 init.c 中可能缺失的底层函数声明
+          if [ -f "KernelSU/kernel/core/init.c" ]; then
+            grep -q "ksu_app_profile_init" KernelSU/kernel/core/init.c || sed -i '/#include/a void ksu_app_profile_init(void);\nvoid ksu_lsm_hook_exit(void);' KernelSU/kernel/core/init.c
+          fi
           
           echo "========================================"
           echo "3. 注入 SUSFS 模块到内核主树"
