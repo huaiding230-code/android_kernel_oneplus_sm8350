@@ -48,6 +48,13 @@ jobs:
           echo "========================================"
           # 此时 KernelSU 已经存在，它的内部就包含了 kernel/setup.sh
           bash KernelSU/kernel/setup.sh main
+
+          echo "========================================"
+          echo "2.1 修复 ksu.h、selinux.h、init.c 缺少 version.h 的问题"
+          echo "========================================"
+          sed -i '1i #include <linux/version.h>' KernelSU/kernel/include/ksu.h
+          sed -i '1i #include <linux/version.h>' KernelSU/kernel/selinux/selinux.h
+          sed -i '1i #include <linux/version.h>' KernelSU/kernel/core/init.c
           
           echo "========================================"
           echo "3. 注入 SUSFS 模块到内核主树"
@@ -73,16 +80,7 @@ jobs:
             echo -e '\nconfig KSU_SUSFS\n\tbool "SUSFS support"\n\tdefault y\n' >> fs/Kconfig
           fi
           
-          echo "========================================"
-          echo "4. 为 SukiSU (KernelSU) 打上 SUSFS 对接补丁"
-          echo "========================================"
-          KSU_PATCH=$(find /tmp/susfs4ksu -name "*ksu*.patch" -o -name "*KernelSU*.patch" | head -n 1)
-          if [ -n "$KSU_PATCH" ] && [ -f "$KSU_PATCH" ]; then
-            echo "找到 KernelSU 补丁: $KSU_PATCH"
-            git -C KernelSU apply "$KSU_PATCH" || git -C KernelSU apply --REJECT "$KSU_PATCH" || echo "警告: 补丁应用可能存在部分冲突，继续构建"
-          else
-            echo "提示: 未找到专用的 KernelSU 补丁，跳过..."
-          fi
+          echo "SukiSU-Ultra (builtin) and SUSFS integrated successfully."
           
       - name: Build Integrated Kernel
         run: |
