@@ -50,20 +50,30 @@ jobs:
             > drivers/kernelsu/feature/kernel_umount.c
           fi
   
-          echo "3. 注入 SUSFS 模块到内核主树"
+          echo "========================================"
+          echo "3. 注入 SUSFS 模块与内核补丁"
+          echo "========================================"
           mkdir -p fs include/linux
           rm -rf /tmp/susfs4ksu
           git clone --depth=1 https://gitlab.com/simonpunk/susfs4ksu.git /tmp/susfs4ksu
   
+          # 1. 移动 susfs.c 和头文件
           SUSFS_C=$(find /tmp/susfs4ksu -name "susfs.c" | head -n 1)
           if [ -n "$SUSFS_C" ]; then
             cp "$SUSFS_C" fs/
           else
             echo "[-] 错误: 未找到 susfs.c" && exit 1
           fi
-  
           find /tmp/susfs4ksu -name "susfs*.h" -exec cp {} include/linux/ \;
   
+          # 2. 自动匹配并应用 5.4 内核的 SUSFS 补丁 (注入 path_umount 及 VFS 钩子)
+          SUSFS_PATCH=$(find /tmp/susfs4ksu -type f -name "*5.4*.patch" | head -n 1)
+          if [ -n "$SUSFS_PATCH" ]; then
+            echo "[+] 正在应用 5.4 SUSFS 内核补丁: $SUSFS_PATCH"
+            patch -p1 < "$SUSFS_PATCH" || true
+          fi
+  
+          # 3. 注入 Kconfig 与 Makefile
           if ! grep -q "susfs.o" fs/Makefile; then
             echo "obj-\$(CONFIG_KSU_SUSFS) += susfs.o" >> fs/Makefile
           fi
