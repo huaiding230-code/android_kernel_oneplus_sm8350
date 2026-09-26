@@ -44,51 +44,52 @@ jobs:
           git clone --depth=1 https://github.com/huaiding230-code/SukiSU-Ultra KernelSU
           bash KernelSU/kernel/setup.sh main
   
-      - name: Ultimate Fix for SukiSU (Linux 5.4)
+      - name: Patch SukiSU with Strict Fail Fast
         run: |
-          echo "========================================"
-          echo "1. 用 subdir-ccflags-y 递归注入 Makefile / Kbuild"
-          echo "========================================"
-          # 遍历 drivers/kernelsu 下的 Makefile 与 Kbuild（解决 Kbuild 优先级与子目录失效问题）
-          for TARGET_FILE in "drivers/kernelsu/Makefile" "drivers/kernelsu/Kbuild"; do
-            if [ -f "$TARGET_FILE" ]; then
-              echo '' >> "$TARGET_FILE"
-              echo '# SukiSU Subdirectory Global Flags' >> "$TARGET_FILE"
-              # 关键：改用 subdir-ccflags-y 才能穿透到 core/、feature/、selinux/ 等子目录
-              echo 'subdir-ccflags-y += -I$(srctree)/$(src) -I$(srctree)/$(src)/core -I$(srctree)/$(src)/include -I$(srctree)/$(src)/feature -I$(srctree)/$(src)/hook -I$(srctree)/$(src)/selinux' >> "$TARGET_FILE"
-              echo 'subdir-ccflags-y += -include linux/version.h -include linux/types.h -include linux/kernel.h -include linux/init.h' >> "$TARGET_FILE"
-              echo "已成功更新 $TARGET_FILE"
-            fi
-          done
+          set -e # 开启严格模式：任何指令失败立刻中止，绝不隐瞒错误
 
           echo "========================================"
-          echo "2. 确保 ksu.h 顶部优先加载 linux/version.h"
+          echo "当前工作目录：$(pwd)"
           echo "========================================"
-          if [ -f "drivers/kernelsu/include/ksu.h" ]; then
-            # 删掉 ksu.h 内部冲突的重复宏定义
-            sed -i '/#define KERNEL_VERSION/d' drivers/kernelsu/include/ksu.h
 
-            # 在 ksu.h 最顶端注入 #include <linux/version.h>，确保 LINUX_VERSION_CODE 永远存在
-            echo '#include <linux/version.h>' > /tmp/ksu_header.h
-            cat drivers/kernelsu/include/ksu.h >> /tmp/ksu_header.h
-            mv /tmp/ksu_header.h drivers/kernelsu/include/ksu.h
-            echo "已完成 ksu.h 头部强制注入"
+          # 1. 自动定位 kernelsu 源码路径
+          KSU_DIR=$(find . -type d -name "kernelsu" | grep "drivers/kernelsu" | head -n 1)
+          
+          if [ -z "$KSU_DIR" ]; then
+            echo "❌ 错误：在当前目录下完全没找到 drivers/kernelsu 目录！"
+            echo "请检查：SukiSU 的下载/克隆步骤是否放在了这个 Patch 步骤之后？"
+            exit 1
           fi
 
-          echo "========================================"
-          echo "3. 注释 init.c 缺失函数与清空 umount"
-          echo "========================================"
-          if [ -f "drivers/kernelsu/core/init.c" ]; then
-            # 兼容所有空格格式，准确注释 5.4 缺失的 Hook 函数
-            sed -i 's/ksu_app_profile_init();/\/\/ ksu_app_profile_init();/g' drivers/kernelsu/core/init.c
-            sed -i 's/ksu_lsm_hook_exit();/\/\/ ksu_lsm_hook_exit();/g' drivers/kernelsu/core/init.c
-            echo "已注释 init.c 不兼容函数"
+          echo "✅ 成功找到路径：$KSU_DIR"
+
+          # 2. 强行在 ksu.h 最第一行插入 #include <linux/version.h>
+          KSU_H="$KSU_DIR/include/ksu.h"
+          if [ -f "$KSU_H" ]; then
+            sed -i '1i #include <linux/version.h>' "$KSU_H"
+            echo "✅ 成功向 $KSU_H 注入版本头文件"
+          else
+            echo "❌ 找不到文件：$KSU_H"
+            exit 1
           fi
 
-          if [ -f "drivers/kernelsu/feature/kernel_umount.c" ]; then
-            > drivers/kernelsu/feature/kernel_umount.c
-            echo "已清空不兼容的 kernel_umount.c"
+          # 3. 强行在 init.c 第一行插入头文件，并注释 5.4 不兼容函数
+          INIT_C="$KSU_DIR/core/init.c"
+          if [ -f "$INIT_C" ]; then
+            sed -i '1i #include <linux/version.h>' "$INIT_C"
+            sed -i 's/ksu_app_profile_init();/\/\/ ksu_app_profile_init();/g' "$INIT_C"
+            sed -i 's/ksu_lsm_hook_exit();/\/\/ ksu_lsm_hook_exit();/g' "$INIT_C"
+            echo "✅ 成功修复 $INIT_C"
+          else
+            echo "❌ 找不到文件：$INIT_C"
+            exit 1
           fi
+
+          # 4. 打印修改后的 ksu.h 前 5 行，硬性验证修改成果
+          echo "========================================"
+          echo "验证 $KSU_H 头部内容："
+          head -n 5 "$KSU_H"
+          echo "========================================"
   
           echo "========================================"
           echo "3. 注入 SUSFS 模块到内核主树"
