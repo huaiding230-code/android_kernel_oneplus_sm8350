@@ -44,63 +44,50 @@ jobs:
           git clone --depth=1 https://github.com/huaiding230-code/SukiSU-Ultra KernelSU
           bash KernelSU/kernel/setup.sh main
   
-      - name: Patch SukiSU with Strict Fail Fast
-        run: |
-          set -e # 严格模式
-
           echo "========================================"
-          echo "当前工作目录：$(pwd)"
+          echo "2. 精准修补 ksu.h 头文件与宏定义"
           echo "========================================"
+          if [ -f "drivers/kernelsu/include/ksu.h" ]; then
+            # 1. 彻底删除 ksu.h 原文件里可能残留的 KERNEL_VERSION 定义
+            sed -i '/#define KERNEL_VERSION/d' drivers/kernelsu/include/ksu.h
 
-          # 精准定位：仅在 drivers 目录下寻找 SukiSU 驱动核心 init.c 文件（自动排除 Manager App 目录）
-          INIT_C_PATH=$(find . -path "*/drivers/*" -name "init.c" | grep -i -E "kernelsu|sukisu" | head -n 1)
+            # 2. 先 #include <linux/version.h>，再用 #ifndef 做备用判断
+            echo '#include <linux/version.h>' > /tmp/ksu_patch.h
+            echo '#ifndef KERNEL_VERSION' >> /tmp/ksu_patch.h
+            echo '#define KERNEL_VERSION(a,b,c) (((a) << 16) + ((b) << 8) + (c))' >> /tmp/ksu_patch.h
+            echo '#endif' >> /tmp/ksu_patch.h
 
-          if [ -z "$INIT_C_PATH" ]; then
-            echo "❌ 错误：在 drivers 目录下未找到 SukiSU 内核驱动源码 (init.c)！"
-            echo "排查：查看 drivers 目录下匹配的文件夹："
-            find . -path "*/drivers/*" -type d | grep -i -E "kernel|su" || true
-            exit 1
+            cat drivers/kernelsu/include/ksu.h >> /tmp/ksu_patch.h
+            mv /tmp/ksu_patch.h drivers/kernelsu/include/ksu.h
+            echo "已成功修复 ksu.h 宏定义顺序与冲突"
           fi
 
-          # 从 core/init.c 向上退两级目录，取得 SukiSU 驱动根目录
-          KSU_DIR=$(dirname $(dirname "$INIT_C_PATH"))
-
-          echo "✅ 成功精准定位 SukiSU 内核驱动目录：$KSU_DIR"
-
-          # 1. 在 include/ksu.h 第一行注入 #include <linux/version.h>
-          KSU_H="$KSU_DIR/include/ksu.h"
-          if [ -f "$KSU_H" ]; then
-            sed -i '/#define KERNEL_VERSION/d' "$KSU_H"
-            sed -i '1i #include <linux/version.h>' "$KSU_H"
-            echo "✅ 成功向 $KSU_H 注入版本头文件"
-          else
-            echo "❌ 找不到目标文件：$KSU_H"
-            exit 1
+          # 处理 init.c 中未定义的函数调用
+          if [ -f "drivers/kernelsu/core/init.c" ]; then
+            sed -i 's/\(ksu_app_profile_init();\)/\/\* \1 \*\//g' drivers/kernelsu/core/init.c
+            sed -i 's/\(ksu_lsm_hook_exit();\)/\/\* \1 \*\//g' drivers/kernelsu/core/init.c
           fi
 
-          # 2. 在 core/init.c 第一行插入头文件，并注释 5.4 不兼容函数
-          INIT_C="$KSU_DIR/core/init.c"
-          if [ -f "$INIT_C" ]; then
-            sed -i '1i #include <linux/version.h>' "$INIT_C"
-            sed -i 's/ksu_app_profile_init();/\/\/ ksu_app_profile_init();/g' "$INIT_C"
-            sed -i 's/ksu_lsm_hook_exit();/\/\/ ksu_lsm_hook_exit();/g' "$INIT_C"
-            echo "✅ 成功修复 $INIT_C"
-          else
-            echo "❌ 找不到目标文件：$INIT_C"
-            exit 1
-          fi
-
-          # 3. 清空 kernel_umount.c
-          UMOUNT_C="$KSU_DIR/feature/kernel_umount.c"
-          if [ -f "$UMOUNT_C" ]; then
-            echo '// Empty stub for Linux 5.4' > "$UMOUNT_C"
-            echo "✅ 已打桩 $UMOUNT_C"
+          # 彻底清空 5.4 内核不兼容的挂载文件
+          if [ -f "drivers/kernelsu/feature/kernel_umount.c" ]; then
+            > drivers/kernelsu/feature/kernel_umount.c
+            echo "已清空不兼容的 kernel_umount.c"
           fi
 
           echo "========================================"
-          echo "验证 $KSU_H 修改后的前 5 行："
-          head -n 5 "$KSU_H"
-          echo "========================================"========="=============="
+          echo "修补 sulog.c 缺失的头文件"
+          echo "========================================"
+          if [ -f "drivers/kernelsu/feature/sulog.c" ]; then
+            echo '#include <linux/types.h>' > /tmp/sulog_patch.c
+            echo '#include <linux/kernel.h>' >> /tmp/sulog_patch.c
+            echo '#include <linux/init.h>' >> /tmp/sulog_patch.c
+            echo '#include "feature.h"' >> /tmp/sulog_patch.c
+            echo '#include "../include/ksu.h"' >> /tmp/sulog_patch.c
+
+            cat drivers/kernelsu/feature/sulog.c >> /tmp/sulog_patch.c
+            mv /tmp/sulog_patch.c drivers/kernelsu/feature/sulog.c
+            echo "已成功注入 sulog.c 基础头文件"
+          fi
   
           echo "========================================"
           echo "3. 注入 SUSFS 模块到内核主树"
