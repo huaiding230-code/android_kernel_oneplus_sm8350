@@ -32,25 +32,30 @@ jobs:
           git clone --depth=1 https://github.com/kdrag0n/proton-clang.git toolchain/proton-clang
           echo "${GITHUB_WORKSPACE}/toolchain/proton-clang/bin" >> "${GITHUB_PATH}"
 
-      # 4. 植入 SukiSU 源码 (Builtin 模式)
+     # 4. 植入 SukiSU 源码 (使用你 SukiSU 仓库的 test-branch 分支与标准 setup.sh)
       - name: Integrate SukiSU Builtin
         shell: bash
         run: |
           set -euo pipefail
           cd "${GITHUB_WORKSPACE}/kernel_source"
+          echo "========================================"
+          echo "Integrating SukiSU Builtin"
+          echo "========================================"
           
-          # 直接克隆你自己的 test-branch 分支到 KernelSU 目录
+          # 克隆你个人仓库里的 SukiSU-Ultra 到 KernelSU 目录
           git clone -b test-branch https://github.com/huaiding230-code/SukiSU-Ultra.git KernelSU
-
+          
+          # 运行官方标准的 setup.sh 脚本，自动处理软链接和驱动层的 Makefile/Kconfig
           bash KernelSU/kernel/setup.sh builtin
           
-          if [ ! -d "KernelSU" ] || [ ! -f "KernelSU/kernel/Kconfig" ]; then
+          # 安全校验
+          if [ ! -d "KernelSU" ] || [ ! -L "drivers/kernelsu" ]; then
             echo "ERROR: SukiSU integration failed."
             exit 1
           fi
           echo "SukiSU Builtin integration completed."
 
-      # 5. 准备 SUSFS 源码文件 (智能通配符模式)
+      # 5. 准备 SUSFS 源码文件 (直接从你仓库的 patch 目录复制)
       - name: Prepare SUSFS Files
         shell: bash
         run: |
@@ -63,109 +68,106 @@ jobs:
           # 创建内核中的目标文件夹
           mkdir -p fs include/linux
           
-          # 自动复制你分类好的文件夹内的所有内容
-          # 当你后续上传 susfs_def.h 到 patch/include/linux/ 后，这里会自动将其复制过去
-          cp -rv patch/fs/* fs/
-          cp -rv patch/include/linux/* include/linux/
+          # 将你仓库里整理好的 patch 文件精准复制到内核对应目录
+          cp patch/fs/susfs.c fs/susfs.c
+          cp patch/susfs.h include/linux/susfs.h
           
-          echo "SUSFS source files copied."
-
-      # # 6. 为 SukiSU/KernelSU 打对接 SUSFS 的补丁
-      # - name: Apply SUSFS KernelSU Patch
-      #   shell: bash
-      #   run: |
-      #     set -euo pipefail
-      #     cd "${GITHUB_WORKSPACE}/kernel_source"
-      #     echo "========================================"
-      #     echo "Applying SUSFS KernelSU patch"
-      #     echo "========================================"
-          
-      #     # 路径更新为你重构后的 patch/KernelSU/ 目录
-      #     KSU_PATCH="${GITHUB_WORKSPACE}/kernel_source/patch/KernelSU/10_enable_susfs_for_ksu.patch"
-          
-      #     if [ -f "${KSU_PATCH}" ]; then
-      #       if git -C KernelSU apply --check "${KSU_PATCH}"; then
-      #         git -C KernelSU apply "${KSU_PATCH}"
-      #         echo "KernelSU SUSFS patch applied."
-      #       else
-      #         echo "ERROR: KernelSU SUSFS patch does not apply or is already applied."
-      #       fi
-      #     else
-      #       echo "KernelSU SUSFS patch not found. Skipping."
-          # fi
-
-      # 7. 为内核底层文件打 SUSFS 核心补丁
-      - name: Apply SUSFS 5.4 Kernel Patch
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd "${GITHUB_WORKSPACE}/kernel_source"
-          
-          SUSFS_PATCH="patch/50_add_susfs_in_kernel-5.4.patch"
-          echo "========================================"
-          echo "Applying SUSFS 5.4 kernel patch"
-          echo "========================================"
-          
-          if git apply --check "${SUSFS_PATCH}"; then
-            git apply --verbose "${SUSFS_PATCH}"
-            echo "SUSFS patch applied successfully."
-          elif git apply --reverse --check "${SUSFS_PATCH}"; then
-            echo "SUSFS patch is already applied."
-          else
-            echo "Patch does not apply cleanly. Generating reject files..."
-            git apply --reject --whitespace=nowarn "${SUSFS_PATCH}" || true
-            exit 1
+          # 自动向内核的 fs/Makefile 和 fs/Kconfig 注入 SUSFS 编译规则（避开复杂的 patch 冲突）
+          if ! grep -q "susfs.o" fs/Makefile; then
+            echo "obj-\$(CONFIG_KSU_SUSFS) += susfs.o" >> fs/Makefile
           fi
-
-      # 8. 编译内核
-      - name: Build LineageOS Kernel
-        shell: bash
+          if ! grep -q "CONFIG_KSU_SUSFS" fs/Kconfig; then
+            echo -e '\nconfig KSU_SUSFS\n\tbool "SUSFS support"\n\tdefault y\n' >> fs/Kconfig
+          fi
+          
+          echo "SUSFS source files copied and hooked."
+      - name: Build Integrated Kernel
         run: |
           set -euo pipefail
-          cd "${GITHUB_WORKSPACE}/kernel_source"
+          cd kernel_source
           
+          # 配置 Clang 工具链路径
           CLANG_DIR="${GITHUB_WORKSPACE}/toolchain/proton-clang"
           export PATH="${CLANG_DIR}/bin:${PATH}"
           
+          # 准备干净的输出目录
           OUT_DIR="${GITHUB_WORKSPACE}/out"
+          rm -rf "${OUT_DIR}"
           mkdir -p "${OUT_DIR}"
-          
-          DEFCONFIG="vendor/lahaina-qgki_defconfig"
-          MAKE_ARGS=(ARCH=arm64 LLVM=1 LLVM_IAS=1 CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- O="${OUT_DIR}")
-          
-          make "${MAKE_ARGS[@]}" mrproper
-          make "${MAKE_ARGS[@]}" "${DEFCONFIG}"
-          CONFIG_FILE="${OUT_DIR}/.config"
-          
-          set_config_value() {
-            local config_name="$1"
-            local config_value="$2"
-            if grep -q "^${config_name}=" "${CONFIG_FILE}"; then
-              sed -i "s/^${config_name}=.*/${config_name}=${config_value}/" "${CONFIG_FILE}"
-            elif grep -q "^# ${config_name} is not set" "${CONFIG_FILE}"; then
-              sed -i "s/^# ${config_name} is not set/${config_name}=${config_value}/" "${CONFIG_FILE}"
-            else
-              echo "${config_name}=${config_value}" >> "${CONFIG_FILE}"
-            fi
-          }
-          
-          # 开启 KSU 和 SUSFS
-          set_config_value CONFIG_KSU y
-          set_config_value CONFIG_KSU_SUSFS y
-          if grep -q 'config KSU_SUSFS_HAS_MAGIC_MOUNT' KernelSU/kernel/Kconfig; then
-            set_config_value CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT y
+  
+          echo "========================================"
+          echo "1. 解锁 Kconfig 隐式配置限制 (防止网络模块报错)"
+          echo "========================================"
+          if [ -f "net/core/Kconfig" ]; then
+            sed -i 's/^config RPS$/config RPS\n\tprompt "Receive Packet Steering"/g' net/core/Kconfig
           fi
+  
+          echo "========================================"
+          echo "2. 配置 LineageOS Target Defconfig"
+          echo "========================================"
+          # 直接指定你一加9 LineageOS 的配置文件
+          DEFCONFIG_TARGET="vendor/lahaina-qgki_defconfig"
+          echo "使用配置文件: ${DEFCONFIG_TARGET}"
+  
+          # 定义编译参数
+          MAKE_ARGS=(
+            ARCH=arm64
+            LLVM=1
+            LLVM_IAS=1
+            CC=clang
+            KCFLAGS="-Wno-unused-function"
+            CROSS_COMPILE=aarch64-linux-gnu-
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+            O="${OUT_DIR}"
+          )
+  
+          # 加载基础配置
+          make "${MAKE_ARGS[@]}" "${DEFCONFIG_TARGET}"
+  
+          echo "========================================"
+          echo "3. 使用 scripts/config 强力注入 SukiSU/SUSFS 配置"
+          echo "========================================"
+          CONFIG_TOOL="scripts/config"
+          if [ -f "${CONFIG_TOOL}" ]; then
+            chmod +x "${CONFIG_TOOL}"
+            
+            # --- 解决编译未定义的底层网络与安全依赖 ---
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_NET
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_INET
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KEYS
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_PERF_EVENTS
           
+            # --- 全面开启 SukiSU Ultra & SUSFS 的各项功能 ---
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_SUS_PATH
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_SUS_MOUNT
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_SUS_KSTAT
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_TRY_UMOUNT
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_SPOOF_UNAME
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_ENABLE_LOG
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_OPEN_REDIRECT
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SPOOF_CPU
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SELINUX_HIDE
+          fi
+
+          # 统一刷新并生成最终的 autoconf.h 头文件
           make "${MAKE_ARGS[@]}" olddefconfig
           
-          if ! grep -q '^CONFIG_KSU=y' "${CONFIG_FILE}" || ! grep -q '^CONFIG_KSU_SUSFS=y' "${CONFIG_FILE}"; then
-            echo "ERROR: KSU or SUSFS config is missing."
-            exit 1
-          fi
-          
-          # 多核极速编译
+          echo "========================================"
+          echo "4. 核心配置状态安全校验"
+          echo "========================================"
+          grep -q "CONFIG_KSU_SUSFS=y" "${OUT_DIR}/.config" || { echo "ERROR: CONFIG_KSU_SUSFS 未成功启用！"; exit 1; }
+  
+          echo "========================================"
+          echo "5. 开始多核极速编译内核"
+          echo "========================================"
           make "${MAKE_ARGS[@]}" -j"$(nproc)"
-
       # 9. 用 AnyKernel3 制作卡刷包
       - name: Pack with AnyKernel3
         shell: bash
