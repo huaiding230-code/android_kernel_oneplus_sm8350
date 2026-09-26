@@ -1,4 +1,4 @@
-name: Phase 2 - LineageOS Kernel with SukiSU
+name: Phase 2 - LineageOS Kernel with SukiSU and SUSFS
 
 on:
   workflow_dispatch:
@@ -67,6 +67,128 @@ jobs:
 
           echo "SukiSU Builtin integration completed."
 
+      - name: Prepare SUSFS Files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cd "${GITHUB_WORKSPACE}/kernel_source"
+
+          echo "========================================"
+          echo "Preparing SUSFS source files"
+          echo "========================================"
+
+          SUSFS_C_FILE="$(
+            find patch -type f -path '*/fs/susfs.c' \
+            | head -n 1
+          )"
+
+          SUSFS_H_FILE="$(
+            find patch -type f -path '*/include/linux/susfs.h' \
+            | head -n 1
+          )"
+
+          if [ -z "${SUSFS_C_FILE}" ]; then
+            echo "ERROR: susfs.c was not found under patch/"
+            exit 1
+          fi
+
+          if [ -z "${SUSFS_H_FILE}" ]; then
+            echo "ERROR: susfs.h was not found under patch/"
+            exit 1
+          fi
+
+          echo "Using:"
+          echo "${SUSFS_C_FILE}"
+          echo "${SUSFS_H_FILE}"
+
+          mkdir -p fs
+          mkdir -p include/linux
+
+          cp "${SUSFS_C_FILE}" fs/susfs.c
+          cp "${SUSFS_H_FILE}" include/linux/susfs.h
+
+          echo "SUSFS source files copied."
+
+      - name: Apply SUSFS KernelSU Patch
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cd "${GITHUB_WORKSPACE}/kernel_source"
+
+          echo "========================================"
+          echo "Applying SUSFS KernelSU patch"
+          echo "========================================"
+
+          KSU_PATCH="$(
+            find patch -type f \
+              -path '*/KernelSU/10_enable_susfs_for_ksu.patch' \
+            | head -n 1
+          )"
+
+          if [ -z "${KSU_PATCH}" ]; then
+            echo "KernelSU SUSFS patch not found."
+            echo "Continuing without this additional patch."
+            exit 0
+          fi
+
+          if git -C KernelSU apply --check "${KSU_PATCH}"; then
+            git -C KernelSU apply "${KSU_PATCH}"
+            echo "KernelSU SUSFS patch applied."
+          elif git -C KernelSU apply --reverse --check "${KSU_PATCH}"; then
+            echo "KernelSU SUSFS patch is already applied."
+          else
+            echo "ERROR: KernelSU SUSFS patch does not apply."
+            exit 1
+          fi
+
+      - name: Apply SUSFS 5.4 Kernel Patch
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cd "${GITHUB_WORKSPACE}/kernel_source"
+
+          SUSFS_PATCH="patch/50_add_susfs_in_kernel-5.4.patch"
+
+          echo "========================================"
+          echo "Applying SUSFS 5.4 kernel patch"
+          echo "========================================"
+
+          if [ ! -f "${SUSFS_PATCH}" ]; then
+            echo "ERROR: SUSFS patch not found:"
+            echo "${SUSFS_PATCH}"
+            exit 1
+          fi
+
+          if git apply --check "${SUSFS_PATCH}"; then
+            git apply --verbose "${SUSFS_PATCH}"
+            echo "SUSFS patch applied successfully."
+
+          elif git apply --reverse --check "${SUSFS_PATCH}"; then
+            echo "SUSFS patch is already applied."
+
+          else
+            echo "Patch does not apply cleanly."
+            echo "Generating reject files for manual integration..."
+
+            git apply \
+              --reject \
+              --whitespace=nowarn \
+              "${SUSFS_PATCH}" || true
+
+            echo "Reject files:"
+            find . \
+              \( -name '*.rej' -o -name '*.orig' \) \
+              -print
+
+            echo ""
+            echo "Manual integration is required."
+            echo "The build will stop here."
+            exit 1
+          fi
+
       - name: Build LineageOS Kernel
         shell: bash
         run: |
@@ -93,13 +215,13 @@ jobs:
           )
 
           echo "========================================"
-          echo "1. 清理输出目录"
+          echo "1. Cleaning output directory"
           echo "========================================"
 
           make "${MAKE_ARGS[@]}" mrproper
 
           echo "========================================"
-          echo "2. 加载 Defconfig"
+          echo "2. Loading defconfig"
           echo "========================================"
 
           make "${MAKE_ARGS[@]}" "${DEFCONFIG}"
@@ -107,50 +229,73 @@ jobs:
           CONFIG_FILE="${OUT_DIR}/.config"
 
           if [ ! -f "${CONFIG_FILE}" ]; then
-            echo "ERROR: .config not found."
+            echo "ERROR: .config was not generated."
             exit 1
           fi
 
           echo "========================================"
-          echo "3. 启用 SukiSU Builtin"
+          echo "3. Enabling SukiSU and SUSFS"
           echo "========================================"
 
-          # 你的源码没有 scripts/config，
-          # 所以直接修改输出目录中的 .config。
+          set_config_value() {
+            local config_name="$1"
+            local config_value="$2"
 
-          if grep -q '^CONFIG_KSU=' "${CONFIG_FILE}"; then
-            sed -i 's/^CONFIG_KSU=.*/CONFIG_KSU=y/' "${CONFIG_FILE}"
-          elif grep -q '^# CONFIG_KSU is not set' "${CONFIG_FILE}"; then
-            sed -i 's/^# CONFIG_KSU is not set/CONFIG_KSU=y/' "${CONFIG_FILE}"
-          else
-            echo 'CONFIG_KSU=y' >> "${CONFIG_FILE}"
+            if grep -q "^${config_name}=" "${CONFIG_FILE}"; then
+              sed -i \
+                "s/^${config_name}=.*/${config_name}=${config_value}/" \
+                "${CONFIG_FILE}"
+
+            elif grep -q "^# ${config_name} is not set" "${CONFIG_FILE}"; then
+              sed -i \
+                "s/^# ${config_name} is not set/${config_name}=${config_value}/" \
+                "${CONFIG_FILE}"
+
+            else
+              echo "${config_name}=${config_value}" >> "${CONFIG_FILE}"
+            fi
+          }
+
+          set_config_value CONFIG_KSU y
+          set_config_value CONFIG_KSU_SUSFS y
+
+          if grep -q \
+            'config KSU_SUSFS_HAS_MAGIC_MOUNT' \
+            KernelSU/kernel/Kconfig; then
+            set_config_value CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT y
           fi
 
           echo "========================================"
-          echo "4. 重新处理内核配置"
+          echo "4. Updating kernel configuration"
           echo "========================================"
 
           make "${MAKE_ARGS[@]}" olddefconfig
 
           echo "========================================"
-          echo "5. 检查 SukiSU 配置"
+          echo "5. Checking final configuration"
           echo "========================================"
 
-          grep -E '^CONFIG_KSU=' "${CONFIG_FILE}" || true
+          grep -E \
+            '^(CONFIG_KSU=|CONFIG_KSU_SUSFS=|CONFIG_KSU_SUSFS_)' \
+            "${CONFIG_FILE}" || true
 
           if ! grep -q '^CONFIG_KSU=y' "${CONFIG_FILE}"; then
             echo "ERROR: CONFIG_KSU=y is missing."
             exit 1
           fi
 
-          echo "SukiSU Builtin configuration passed."
+          if ! grep -q '^CONFIG_KSU_SUSFS=y' "${CONFIG_FILE}"; then
+            echo "ERROR: CONFIG_KSU_SUSFS=y is missing."
+            exit 1
+          fi
+
+          echo "SukiSU and SUSFS configuration passed."
 
           echo "========================================"
-          echo "6. 编译内核"
+          echo "6. Building kernel"
           echo "========================================"
 
           make "${MAKE_ARGS[@]}" -j"$(nproc)"
-
 
       - name: Pack with AnyKernel3
         shell: bash
@@ -182,7 +327,7 @@ jobs:
             anykernel.sh
 
           echo "========================================"
-          echo "Extracting Kernel Image"
+          echo "Extracting kernel image"
           echo "========================================"
 
           OUT_DIR="${GITHUB_WORKSPACE}/out"
@@ -190,16 +335,18 @@ jobs:
           if [ -f "${OUT_DIR}/arch/arm64/boot/Image.gz-dtb" ]; then
             cp "${OUT_DIR}/arch/arm64/boot/Image.gz-dtb" ./
             echo "[+] Copied Image.gz-dtb"
+
           elif [ -f "${OUT_DIR}/arch/arm64/boot/Image" ]; then
             cp "${OUT_DIR}/arch/arm64/boot/Image" ./
             echo "[+] Copied Image"
+
           else
-            echo "[-] ERROR: Kernel image not found."
+            echo "ERROR: Kernel image was not found."
             exit 1
           fi
 
       - name: Upload Kernel Zip Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Lineage-SukiSU-Builtin-Kernel
+          name: Lineage-SukiSU-SUSFS-Kernel
           path: AnyKernel3/*
