@@ -47,35 +47,35 @@ jobs:
       - name: Strict Fix for SukiSU (Linux 5.4)
         run: |
           echo "========================================"
-          echo "1. 末尾追加 Makefile 全局参数与头文件"
+          echo "1. 末尾安全追加 Makefile 全局参数与头文件"
           echo "========================================"
           KSU_MAKEFILE="drivers/kernelsu/Makefile"
 
           if [ -f "$KSU_MAKEFILE" ]; then
-            # 使用 >> 追加到 Makefile 末尾，绝不触动第一行注释与结构
+            # 使用 >> 追加到 Makefile 末尾，安全不触动顶部语法与注释
             echo '' >> "$KSU_MAKEFILE"
             echo '# SukiSU Linux 5.4 Global Flags' >> "$KSU_MAKEFILE"
             echo 'ccflags-y += -I$(srctree)/$(src) -I$(srctree)/$(src)/core -I$(srctree)/$(src)/include -I$(srctree)/$(src)/feature -I$(srctree)/$(src)/hook -I$(srctree)/$(src)/selinux' >> "$KSU_MAKEFILE"
             echo 'ccflags-y += -include linux/version.h -include linux/types.h -include linux/kernel.h -include linux/init.h' >> "$KSU_MAKEFILE"
-            echo "已成功在 Makefile 末尾安全追加全局编译选项"
+            echo "已成功追加 Makefile 全局预加载参数"
           fi
 
           echo "========================================"
-          echo "2. 清理 ksu.h 中冗余的宏定义"
+          echo "2. 移除 ksu.h 中与 version.h 冲突的重复宏"
           echo "========================================"
           if [ -f "drivers/kernelsu/include/ksu.h" ]; then
-            # 因为 Makefile 已全局 -include linux/version.h，直接删掉 ksu.h 里重复的 KERNEL_VERSION 定义即可
+            # version.h 已提供 KERNEL_VERSION 宏，删除 ksu.h 里的定义防止重定义警告
             sed -i '/#define KERNEL_VERSION/d' drivers/kernelsu/include/ksu.h
-            echo "已清理 ksu.h 重复定义"
+            echo "已清理 ksu.h 重复的 KERNEL_VERSION 定义"
           fi
 
           echo "========================================"
-          echo "3. 屏蔽 init.c 中 5.4 不兼容的 Hook"
+          echo "3. 注释 init.c 中 5.4 不兼容函数与清空 umount"
           echo "========================================"
           if [ -f "drivers/kernelsu/core/init.c" ]; then
-            sed -i 's/ksu_app_profile_init();/#if 0\n\0\n#endif/' drivers/kernelsu/core/init.c
-            sed -i 's/ksu_lsm_hook_exit();/#if 0\n\0\n#endif/' drivers/kernelsu/core/init.c
-            echo "已使用预处理指令屏蔽不兼容函数"
+            sed -i 's/.*ksu_app_profile_init.*/\/\/ &' drivers/kernelsu/core/init.c
+            sed -i 's/.*ksu_lsm_hook_exit.*/\/\/ &' drivers/kernelsu/core/init.c
+            echo "已屏蔽 init.c 缺失的函数调用"
           fi
 
           if [ -f "drivers/kernelsu/feature/kernel_umount.c" ]; then
