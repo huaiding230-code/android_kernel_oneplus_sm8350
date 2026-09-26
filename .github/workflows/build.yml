@@ -31,27 +31,36 @@ jobs:
           mkdir -p toolchain
           git clone --depth=1 https://github.com/kdrag0n/proton-clang.git toolchain/proton-clang
           echo "${GITHUB_WORKSPACE}/toolchain/proton-clang/bin" >> "${GITHUB_PATH}"
-
      
       - name: Integrate SukiSU Ultra + SUSFS
         run: |
           set -euo pipefail
           cd kernel_source
-          
+  
           echo "========================================"
           echo "1. 克隆 SukiSU-Ultra 并执行 setup.sh"
           echo "========================================"
           git clone --depth=1 https://github.com/huaiding230-code/SukiSU-Ultra KernelSU
           bash KernelSU/kernel/setup.sh main
-
-          # 1. 全局动态查找 feature.h，不管它藏在哪，直接复制到 feature 目录下
-          FEATURE_H_PATH=$(find drivers/kernelsu KernelSU -name "feature.h" 2>/dev/null | head -n 1)
-          if [ -n "$FEATURE_H_PATH" ]; then
-            cp "$FEATURE_H_PATH" drivers/kernelsu/feature/
-            echo "已成功找到并同步 feature.h: $FEATURE_H_PATH -> drivers/kernelsu/feature/"
+  
+          echo "========================================"
+          echo "2. 修复 KernelSU 头文件路径与兼容性问题"
+          echo "========================================"
+          # A. 为 Makefile 注入全局 include 和 include/uapi 头文件搜索路径
+          if [ -f "drivers/kernelsu/Makefile" ]; then
+            echo 'ccflags-y += -I$(srctree)/$(src)/include -I$(srctree)/$(src)/include/uapi -I$(srctree)/$(src)/feature' >> drivers/kernelsu/Makefile
           fi
-
-          # 2. 精准修复 ksu.h 顶部的 KERNEL_VERSION 宏定义
+  
+          # B. 精准找到真正的 feature.h 并复制到 feature/ 目录 (完美解决 sulog.c 找不到 feature.h)
+          if [ -f "drivers/kernelsu/include/uapi/feature.h" ]; then
+            cp drivers/kernelsu/include/uapi/feature.h drivers/kernelsu/feature/
+          elif [ -f "drivers/kernelsu/include/feature.h" ]; then
+            cp drivers/kernelsu/include/feature.h drivers/kernelsu/feature/
+          elif [ -f "KernelSU/kernel/include/uapi/feature.h" ]; then
+            cp KernelSU/kernel/include/uapi/feature.h drivers/kernelsu/feature/
+          fi
+  
+          # C. 修复 ksu.h 顶部的 KERNEL_VERSION 宏定义 (彻底解决 -Wundef 报错)
           if [ -f "drivers/kernelsu/include/ksu.h" ]; then
             if ! grep -q "KERNEL_VERSION" "drivers/kernelsu/include/ksu.h"; then
               {
@@ -61,20 +70,18 @@ jobs:
                 echo "#include <linux/version.h>"
                 cat drivers/kernelsu/include/ksu.h
               } > drivers/kernelsu/include/ksu.h.tmp && mv drivers/kernelsu/include/ksu.h.tmp drivers/kernelsu/include/ksu.h
-              echo "已成功修复 ksu.h"
             fi
           fi
-
-          # 3. 处理 init.c 中未定义的函数调用
+  
+          # D. 注释 init.c 中未定义的函数调用
           if [ -f "drivers/kernelsu/core/init.c" ]; then
             sed -i 's/\(ksu_app_profile_init();\)/\/\* \1 \*\//g' drivers/kernelsu/core/init.c
             sed -i 's/\(ksu_lsm_hook_exit();\)/\/\* \1 \*\//g' drivers/kernelsu/core/init.c
           fi
-
-          # 4. 彻底清空 5.4 内核不兼容的 kernel_umount.c
+  
+          # E. 清空 5.4 内核不兼容的 kernel_umount.c
           if [ -f "drivers/kernelsu/feature/kernel_umount.c" ]; then
             > drivers/kernelsu/feature/kernel_umount.c
-            echo "已清空不兼容的 kernel_umount.c"
           fi
   
           echo "========================================"
@@ -83,24 +90,24 @@ jobs:
           mkdir -p fs include/linux
           rm -rf /tmp/susfs4ksu
           git clone --depth=1 https://github.com/huaiding230-code/susfs4ksu.git /tmp/susfs4ksu
-          
+  
           SUSFS_C=$(find /tmp/susfs4ksu -name "susfs.c" | head -n 1)
           if [ -n "$SUSFS_C" ]; then
             cp "$SUSFS_C" fs/
           else
             echo "[-] 错误: 未找到 susfs.c" && exit 1
           fi
-          
+  
           find /tmp/susfs4ksu -name "susfs*.h" -exec cp {} include/linux/ \;
-          
+  
           if ! grep -q "susfs.o" fs/Makefile; then
             echo "obj-\$(CONFIG_KSU_SUSFS) += susfs.o" >> fs/Makefile
           fi
-          
+  
           if ! grep -q "CONFIG_KSU_SUSFS" fs/Kconfig; then
             echo -e '\nconfig KSU_SUSFS\n\tbool "SUSFS support"\n\tdefault y\n' >> fs/Kconfig
           fi
-          
+  
           echo "SukiSU-Ultra 和 SUSFS 整合完毕。"
           
       - name: Build Integrated Kernel
