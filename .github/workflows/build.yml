@@ -48,16 +48,18 @@ jobs:
           echo "2. 精准修补 ksu.h 头文件与宏定义"
           echo "========================================"
           if [ -f "drivers/kernelsu/include/ksu.h" ]; then
-            # 用 cat 在文件最顶端安全写入宏定义和版本头文件，彻底避开 sed 换行陷阱
-          cat << 'EOF' > /tmp/ksu_patch.h
-          #ifndef KERNEL_VERSION
-          #define KERNEL_VERSION(a,b,c) (((a) << 16) + ((b) << 8) + (c))
-          #endif
-          #include <linux/version.h>
-          EOF
-          cat drivers/kernelsu/include/ksu.h >> /tmp/ksu_patch.h
-          mv /tmp/ksu_patch.h drivers/kernelsu/include/ksu.h
-          echo "已成功在 ksu.h 顶端注入版本宏"
+            # 1. 彻底删除 ksu.h 原文件里可能残留的 KERNEL_VERSION 定义
+            sed -i '/#define KERNEL_VERSION/d' drivers/kernelsu/include/ksu.h
+
+            # 2. 先 #include <linux/version.h>，再用 #ifndef 做备用判断
+            echo '#include <linux/version.h>' > /tmp/ksu_patch.h
+            echo '#ifndef KERNEL_VERSION' >> /tmp/ksu_patch.h
+            echo '#define KERNEL_VERSION(a,b,c) (((a) << 16) + ((b) << 8) + (c))' >> /tmp/ksu_patch.h
+            echo '#endif' >> /tmp/ksu_patch.h
+
+            cat drivers/kernelsu/include/ksu.h >> /tmp/ksu_patch.h
+            mv /tmp/ksu_patch.h drivers/kernelsu/include/ksu.h
+            echo "已成功修复 ksu.h 宏定义顺序与冲突"
           fi
 
           # 处理 init.c 中未定义的函数调用
