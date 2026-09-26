@@ -46,55 +46,51 @@ jobs:
           echo "========================================"
           echo "2. 修复 KernelSU 头文件路径与兼容性问题"
           echo "========================================"
-          # A. 给所有 Makefile 注入全局 include 路径
+          # A. 遍历 drivers/kernelsu 下所有 Makefile，为子目录递归注入包含路径与预预处理宏定义
           find drivers/kernelsu -name "Makefile" | while read -r mk; do
             echo 'ccflags-y += -I$(srctree)/$(src) -I$(srctree)/$(src)/../include -I$(srctree)/$(src)/../include/uapi -I$(srctree)/$(src)/../feature -include linux/types.h -include linux/kernel.h -include linux/printk.h -include linux/version.h' >> "$mk"
           done
   
-          # B. 精准同步内核内部的 feature.h（绝对不能用 uapi 版覆盖它）
-          mkdir -p drivers/kernelsu/feature
-          if [ -f "drivers/kernelsu/include/feature.h" ]; then
-            cp drivers/kernelsu/include/feature.h drivers/kernelsu/feature/
-          elif [ -f "drivers/kernelsu/include/uapi/feature.h" ]; then
-            cp drivers/kernelsu/include/uapi/feature.h drivers/kernelsu/feature/
-          fi
-  
-          # C. 给 sulog.c 注入完整的基础依赖以及同目录下的子头文件
+          # B. 为裸写文件 sulog.c 顶端插入基础内核头文件、真正的内核 feature.h 以及同目录的 sulog.h（消除 incomplete type 与未定义函数报错）
           if [ -f "drivers/kernelsu/feature/sulog.c" ]; then
-            sed -i '1i #include <linux/types.h>\n#include <linux/kernel.h>\n#include <linux/printk.h>\n#include <linux/version.h>\n#include "feature.h"\n#include "sulog.h"' drivers/kernelsu/feature/sulog.c
+            sed -i '1i #include <linux/types.h>\n#include <linux/kernel.h>\n#include <linux/printk.h>\n#include <linux/init.h>\n#include <linux/version.h>\n#include "feature.h"\n#include "sulog.h"' drivers/kernelsu/feature/sulog.c
+            echo "已成功为 sulog.c 注入完整头文件依赖"
           fi
   
-          # D. 强制在 ksu.h 和 selinux.h 顶部注入 linux/version.h
+          # C. 强制在 ksu.h 顶端注入 linux/version.h，解决 KERNEL_VERSION 宏未定义报错
           if [ -f "drivers/kernelsu/include/ksu.h" ]; then
             sed -i '1i #include <linux/version.h>' drivers/kernelsu/include/ksu.h
-          fi
-          if [ -f "drivers/kernelsu/selinux/selinux.h" ]; then
-            sed -i '1i #include <linux/version.h>' drivers/kernelsu/selinux/selinux.h
+            echo "已成功修复 ksu.h 宏依赖"
           fi
   
-          # E. 注释 init.c 中未定义的函数调用
+          # D. 强制在 selinux.h 顶端注入 linux/version.h，解决 LINUX_VERSION_CODE 未定义报错
+          if [ -f "drivers/kernelsu/selinux/selinux.h" ]; then
+            sed -i '1i #include <linux/version.h>' drivers/kernelsu/selinux/selinux.h
+            echo "已成功修复 selinux.h 宏依赖"
+          fi
+  
+          # E. 注释 init.c 中未定义的函数调用（解决 5.4 内核不兼容的 app_profile 与 lsm_hook 函数调用）
           if [ -f "drivers/kernelsu/core/init.c" ]; then
             sed -i 's/\(ksu_app_profile_init();\)/\/\* \1 \*\//g' drivers/kernelsu/core/init.c
             sed -i 's/\(ksu_lsm_hook_exit();\)/\/\* \1 \*\//g' drivers/kernelsu/core/init.c
+            echo "已屏蔽 init.c 中的不兼容函数"
           fi
   
-          # F. 清空 5.4 内核不兼容的 kernel_umount.c
+          # F. 清空 5.4 内核不兼容的 kernel_umount.c（防止编译时报缺失定义错误）
           if [ -f "drivers/kernelsu/feature/kernel_umount.c" ]; then
             > drivers/kernelsu/feature/kernel_umount.c
-          fi
-  
-          # F. 清空 5.4 内核不兼容的 kernel_umount.c
-          if [ -f "drivers/kernelsu/feature/kernel_umount.c" ]; then
-            > drivers/kernelsu/feature/kernel_umount.c
+            echo "已清空不兼容的 kernel_umount.c"
           fi
   
           echo "========================================"
           echo "3. 注入 SUSFS 模块到内核主树"
           echo "========================================"
+          # 创建 SUSFS 所需的基础目录，并从远端拉取仓库
           mkdir -p fs include/linux
           rm -rf /tmp/susfs4ksu
-          git clone --depth=1 https://github.com/huaiding230-code/susfs4ksu.git /tmp/susfs4ksu
+          git clone --depth=1 https://gitlab.com/simonpunk/susfs4ksu.git /tmp/susfs4ksu
   
+          # 移动 susfs.c 到 fs 源码目录
           SUSFS_C=$(find /tmp/susfs4ksu -name "susfs.c" | head -n 1)
           if [ -n "$SUSFS_C" ]; then
             cp "$SUSFS_C" fs/
@@ -102,8 +98,10 @@ jobs:
             echo "[-] 错误: 未找到 susfs.c" && exit 1
           fi
   
+          # 复制所有 susfs 头文件到 include/linux 目录
           find /tmp/susfs4ksu -name "susfs*.h" -exec cp {} include/linux/ \;
   
+          # 将 susfs 编译项注入到 fs/Makefile 和 fs/Kconfig 中
           if ! grep -q "susfs.o" fs/Makefile; then
             echo "obj-\$(CONFIG_KSU_SUSFS) += susfs.o" >> fs/Makefile
           fi
