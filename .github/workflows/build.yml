@@ -46,19 +46,22 @@ jobs:
           echo "========================================"
           echo "2. 修复 KernelSU 头文件路径与兼容性问题"
           echo "========================================"
-          # A. 遍历递归给 drivers/kernelsu 下的所有 Makefile（包括 feature/Makefile）都注入全局头文件路径
+          # A. 给所有 Makefile 注入全局 include 路径
           find drivers/kernelsu -name "Makefile" | while read -r mk; do
             echo 'ccflags-y += -I$(srctree)/$(src) -I$(srctree)/$(src)/../include -I$(srctree)/$(src)/../include/uapi -I$(srctree)/$(src)/../feature -include linux/types.h -include linux/kernel.h -include linux/printk.h -include linux/version.h' >> "$mk"
           done
   
-          # B. 同步 feature.h 到 feature 目录
+          # B. 精准同步内核内部的 feature.h（绝对不能用 uapi 版覆盖它）
           mkdir -p drivers/kernelsu/feature
-          [ -f "drivers/kernelsu/include/uapi/feature.h" ] && cp drivers/kernelsu/include/uapi/feature.h drivers/kernelsu/feature/
-          [ -f "drivers/kernelsu/include/feature.h" ] && cp drivers/kernelsu/include/feature.h drivers/kernelsu/feature/
+          if [ -f "drivers/kernelsu/include/feature.h" ]; then
+            cp drivers/kernelsu/include/feature.h drivers/kernelsu/feature/
+          elif [ -f "drivers/kernelsu/include/uapi/feature.h" ]; then
+            cp drivers/kernelsu/include/uapi/feature.h drivers/kernelsu/feature/
+          fi
   
-          # C. 强制在 sulog.c 第一行硬插入基础依赖（不再用判断，直接写入）
+          # C. 给 sulog.c 注入完整的基础依赖以及同目录下的子头文件
           if [ -f "drivers/kernelsu/feature/sulog.c" ]; then
-            sed -i '1i #include <linux/types.h>\n#include <linux/kernel.h>\n#include <linux/printk.h>\n#include <linux/version.h>\n#include "feature.h"' drivers/kernelsu/feature/sulog.c
+            sed -i '1i #include <linux/types.h>\n#include <linux/kernel.h>\n#include <linux/printk.h>\n#include <linux/version.h>\n#include "feature.h"\n#include "sulog.h"' drivers/kernelsu/feature/sulog.c
           fi
   
           # D. 强制在 ksu.h 和 selinux.h 顶部注入 linux/version.h
@@ -73,6 +76,11 @@ jobs:
           if [ -f "drivers/kernelsu/core/init.c" ]; then
             sed -i 's/\(ksu_app_profile_init();\)/\/\* \1 \*\//g' drivers/kernelsu/core/init.c
             sed -i 's/\(ksu_lsm_hook_exit();\)/\/\* \1 \*\//g' drivers/kernelsu/core/init.c
+          fi
+  
+          # F. 清空 5.4 内核不兼容的 kernel_umount.c
+          if [ -f "drivers/kernelsu/feature/kernel_umount.c" ]; then
+            > drivers/kernelsu/feature/kernel_umount.c
           fi
   
           # F. 清空 5.4 内核不兼容的 kernel_umount.c
