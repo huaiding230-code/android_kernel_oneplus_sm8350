@@ -50,52 +50,37 @@ jobs:
           bash KernelSU/kernel/setup.sh main
 
           echo "========================================"
-          echo "2.1 智能自动化修复头文件及函数声明"
+          echo "2.1 全局修正：对 drivers/kernelsu 目录进行通扫补全"
           echo "========================================"
-          # 1. 智能自动化扫描并补全所有缺失的内核头文件
-          find KernelSU/kernel -type f \( -name "*.c" -o -name "*.h" \) | while read -r file; do
+          # 1. 统一对实际参与编译的 drivers/kernelsu 下所有 C/H 文件通扫头文件
+          find drivers/kernelsu -type f \( -name "*.c" -o -name "*.h" \) | while read -r file; do
+            # 补全 version.h
             if grep -q -E "LINUX_VERSION_CODE|KERNEL_VERSION" "$file" && ! grep -q "linux/version.h" "$file"; then
               sed -i '1i #include <linux/version.h>' "$file"
-              echo "自动补全 version.h -> $file"
             fi
             
-            if grep -q -E "bool|u64|pr_info" "$file" && ! grep -q "linux/types.h" "$file" && [[ "$file" == *"feature/"* || "$file" == *"core/"* ]]; then
+            # 补全底层类型与打印头文件
+            if grep -q -E "\b(bool|u64|u32|u16|u8|pr_info|pr_err|pr_warn)\b" "$file" && ! grep -q "linux/types.h" "$file"; then
               sed -i '1i #include <linux/types.h>\n#include <linux/printk.h>' "$file"
-              echo "自动补全 types.h & printk.h -> $file"
+            fi
+            
+            # 补全 feature.h (针对 feature 目录下的所有模块文件)
+            if [[ "$file" == *"feature/"* ]] && ! grep -q "feature.h" "$file" && [[ "$file" != *"include/"* ]]; then
+              sed -i '1i #include "../include/feature.h"' "$file"
             fi
           done
 
-          # 2. 自动检查并补充 init.c 中缺失的底层函数声明
-          if [ -f "KernelSU/kernel/core/init.c" ]; then
-            grep -q "ksu_app_profile_init" KernelSU/kernel/core/init.c || sed -i '/#include/a \
-            extern void ksu_app_profile_init(void);\
-            extern void ksu_lsm_hook_exit(void);' KernelSU/kernel/core/init.c
-            echo "自动补全 init.c 函数声明成功"
-          fi
-          # 2.0.1. 直接将 init.c 中未定义的两个初始化/退出函数调用注释掉，彻底根治隐式声明报错
-          if [ -f "KernelSU/kernel/core/init.c" ]; then
-            sed -i 's/\(ksu_app_profile_init();\)/\/\* \1 \*\//g' KernelSU/kernel/core/init.c
-            sed -i 's/\(ksu_lsm_hook_exit();\)/\/\* \1 \*\//g' KernelSU/kernel/core/init.c
-            echo "成功注释掉 init.c 中未定义的函数调用"
+          # 2. 处理 init.c 中未定义的函数调用
+          if [ -f "drivers/kernelsu/core/init.c" ]; then
+            sed -i 's/\(ksu_app_profile_init();\)/\/\* \1 \*\//g' drivers/kernelsu/core/init.c
+            sed -i 's/\(ksu_lsm_hook_exit();\)/\/\* \1 \*\//g' drivers/kernelsu/core/init.c
           fi
 
-          echo "========================================"
-          echo "2.2 彻底禁用不兼容的 kernel_umount.c 并自动修复所有 feature 头文件"
-          echo "========================================"
-          # 1. 彻底清空在 5.4 上严重冲突的 kernel_umount.c
-          if [ -f "KernelSU/kernel/feature/kernel_umount.c" ]; then
-            > KernelSU/kernel/feature/kernel_umount.c
+          # 3. 彻底清空 5.4 内核不兼容的 kernel_umount.c
+          if [ -f "drivers/kernelsu/feature/kernel_umount.c" ]; then
+            > drivers/kernelsu/feature/kernel_umount.c
             echo "已清空不兼容的 kernel_umount.c"
           fi
-
-          # 2. 自动为 feature 目录下的所有 C 文件批量补全缺失的 feature.h 头文件
-          find KernelSU/kernel/feature -name "*.c" | while read -r f; do
-            # 如果文件不为空且没有包含 feature.h，则自动在第一行注入
-            if [ -s "$f" ] && ! grep -q "feature.h" "$f"; then
-              sed -i '1i #include "../include/feature.h"' "$f"
-              echo "自动补全 feature.h -> $f"
-            fi
-          done
           
           echo "========================================"
           echo "3. 注入 SUSFS 模块到内核主树"
