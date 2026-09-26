@@ -55,6 +55,7 @@ jobs:
           sed -i '1i #include <linux/version.h>' KernelSU/kernel/include/ksu.h
           sed -i '1i #include <linux/version.h>' KernelSU/kernel/selinux/selinux.h
           sed -i '1i #include <linux/version.h>' KernelSU/kernel/core/init.c
+          sed -i '/#include/a void ksu_app_profile_init(void);\nvoid ksu_lsm_hook_exit(void);' KernelSU/kernel/core/init.c
           
           echo "========================================"
           echo "3. 注入 SUSFS 模块到内核主树"
