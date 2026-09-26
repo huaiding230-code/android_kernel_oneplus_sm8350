@@ -39,32 +39,49 @@ jobs:
           cd kernel_source
           
           echo "========================================"
-          echo "1. 拉取 SukiSU Ultra (test-branch 分支) 与 susfs 源码"
+          echo "1. 拉取你个人仓库的 SukiSU Ultra (test-branch)"
           echo "========================================"
           # 克隆你个人仓库的 test-branch 分支到 KernelSU 目录
           git clone --depth=1 -b test-branch https://github.com/huaiding230-code/SukiSU-Ultra.git KernelSU
-          # 拉取 susfs 源码到临时目录
-          git clone --depth=1 https://github.com/huaiding230-code/susfs4ksu.git /tmp/susfs4ksu
           
           echo "========================================"
-          echo "2. 执行 setup.sh 建立驱动软链接与基础挂载"
+          echo "2. 执行 setup.sh 建立驱动软链接"
           echo "========================================"
-          # 不传 builtin 参数，防止 setup.sh 去强行切不存在的分支
           bash KernelSU/kernel/setup.sh
           
           echo "========================================"
-          echo "3. 注入 SUSFS 模块到内核主树 (这段千万不能删！)"
+          echo "3. 从本地 patch 目录精准复制 SUSFS 文件"
           echo "========================================"
-          # 复制 susfs 的核心 C 源码和头文件
-          cp /tmp/susfs4ksu/susfs.c fs/
-          cp /tmp/susfs4ksu/susfs*.h include/linux/
+          mkdir -p fs include/linux
           
-          # 向 Makefile 和 Kconfig 中追加 SUSFS 编译规则
+          # 直接复制你仓库里 patch 目录下的文件
+          cp patch/susfs.c fs/
+          cp patch/susfs.h include/linux/
+          
+          # 向内核的 Makefile 和 Kconfig 中追加 SUSFS 编译规则
           if ! grep -q "susfs.o" fs/Makefile; then
             echo "obj-\$(CONFIG_KSU_SUSFS) += susfs.o" >> fs/Makefile
           fi
           if ! grep -q "CONFIG_KSU_SUSFS" fs/Kconfig; then
             echo -e '\nconfig KSU_SUSFS\n\tbool "SUSFS support"\n\tdefault y\n' >> fs/Kconfig
+          fi
+          
+          echo "========================================"
+          echo "4. 为 KernelSU 打上对接 SUSFS 的补丁"
+          echo "========================================"
+          # 锁定你本地 patch/KernelSU/ 目录下的补丁文件
+          KSU_PATCH="${GITHUB_WORKSPACE}/kernel_source/patch/KernelSU/10_enable_susfs_for_ksu.patch"
+          
+          if [ -f "${KSU_PATCH}" ]; then
+            if git -C KernelSU apply --check "${KSU_PATCH}"; then
+              git -C KernelSU apply "${KSU_PATCH}"
+              echo "KernelSU SUSFS patch applied successfully."
+            else
+              echo "WARNING: KernelSU SUSFS patch does not apply or is already applied. Skipping."
+            fi
+          else
+            echo "ERROR: KernelSU SUSFS patch not found at ${KSU_PATCH}"
+            exit 1
           fi
 
       - name: Build Integrated Kernel
