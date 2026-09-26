@@ -53,8 +53,8 @@ jobs:
   
           # B. 为裸写文件 sulog.c 顶端插入基础内核头文件、真正的内核 feature.h 以及同目录的 sulog.h（消除 incomplete type 与未定义函数报错）
           if [ -f "drivers/kernelsu/feature/sulog.c" ]; then
-            sed -i '1i #include <linux/types.h>\n#include <linux/kernel.h>\n#include <linux/printk.h>\n#include <linux/init.h>\n#include <linux/version.h>\n#include "feature.h"\n#include "sulog.h"' drivers/kernelsu/feature/sulog.c
-            echo "已成功为 sulog.c 注入完整头文件依赖"
+            # 直接让 sulog.c 引用 policy 目录下的真正 feature.h
+          sed -i '1i #include <linux/types.h>\n#include <linux/kernel.h>\n#include <linux/printk.h>\n#include <linux/init.h>\n#include <linux/version.h>\n#include "../policy/feature.h"\n#include "sulog.h"' drivers/kernelsu/feature/sulog.c   echo "已成功为 sulog.c 注入完整头文件依赖"
           fi
   
           # C. 强制在 ksu.h 顶端注入 linux/version.h，解决 KERNEL_VERSION 宏未定义报错
