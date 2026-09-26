@@ -49,16 +49,23 @@ jobs:
           echo "========================================"
           echo "2. 执行 SukiSU setup.sh (builtin 模式)"
           echo "========================================"
-          bash KernelSU/kernel/setup.sh test-branch
+          bash KernelSU/kernel/setup.sh
           
           echo "========================================"
-          echo "3. 注入 SUSFS 模块到内核主树"
+          echo "3. 从 susfs4ksu 动态查找并注入 SUSFS 模块"
           echo "========================================"
-          # 复制 susfs 的核心 C 源码和头文件
-          cp /tmp/susfs4ksu/susfs.c fs/
-          cp /tmp/susfs4ksu/susfs*.h include/linux/
+          # 动态寻找 susfs.c 复制到 fs/
+          SUSFS_C=$(find /tmp/susfs4ksu -name "susfs.c" | head -n 1)
+          if [ -n "$SUSFS_C" ]; then
+            cp "$SUSFS_C" fs/
+          else
+            echo "[-] 错误: 未找到 susfs.c" && exit 1
+          fi
           
-          # 直接在 Makefile 和 Kconfig 中追加配置（替代容易报错的 patch）
+          # 动态寻找所有 susfs 头文件复制到 include/linux/
+          find /tmp/susfs4ksu -name "susfs*.h" -exec cp {} include/linux/ \;
+          
+          # 写入 Makefile 和 Kconfig 编译规则
           if ! grep -q "susfs.o" fs/Makefile; then
             echo "obj-\$(CONFIG_KSU_SUSFS) += susfs.o" >> fs/Makefile
           fi
