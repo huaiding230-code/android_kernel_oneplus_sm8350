@@ -37,24 +37,33 @@ jobs:
           git clone --depth=1 https://github.com/huaiding230-code/SukiSU-Ultra KernelSU
           bash KernelSU/kernel/setup.sh main
 
-          # 【彻底清理 5.4 内核不兼容的高级模块，防止连锁报错】
+          # 1. 彻底清理 5.4 内核不兼容的高级模块，并同步从 Kbuild 中抹除编译条目
           rm -rf drivers/kernelsu/sulog || true
           rm -f drivers/kernelsu/feature/selinux_hide.c || true
+          sed -i '/selinux_hide.o/d' drivers/kernelsu/feature/Kbuild || true
+          sed -i '/selinux_hide.o/d' drivers/kernelsu/Kbuild || true
 
-          # 【修复核心路径与变量问题】
-          # 1. 修复 feature 目录下 adb_root.c 和 kernel_umount.c 的头文件路径
-          for f in drivers/kernelsu/feature/adb_root.c drivers/kernelsu/feature/kernel_umount.c; do
-            if [ -f "$f" ]; then
-              sed -i 's|#include "../feature.h"|#include "../include/feature.h"|g' "$f"
-            fi
-          done
+          # 2. 完美解决 feature.h 路径问题：直接将 feature.h 复制到 feature 目录中
+          # 这样源码中原本的 #include "../feature.h" 就能直接生效，再也不会报错
+          if [ -f "drivers/kernelsu/include/feature.h" ]; then
+            cp drivers/kernelsu/include/feature.h drivers/kernelsu/feature/
+          elif [ -f "drivers/kernelsu/feature.h" ]; then
+            cp drivers/kernelsu/feature.h drivers/kernelsu/feature/
+          fi
 
-          # 2. 修复 supercall 模块的头文件引入路径
+          # 3. 修复 supercall 模块的头文件路径与缺失的函数声明
           if [ -f "drivers/kernelsu/supercall/dispatch.c" ]; then
             sed -i 's|#include "../include/core_hook.h"|#include "../core_hook.h"|g' drivers/kernelsu/supercall/dispatch.c
           fi
+          for f in drivers/kernelsu/supercall/perm.c drivers/kernelsu/supercall/supercall.c; do
+            if [ -f "$f" ]; then
+              if ! grep -q "include.*ksu.h" "$f"; then
+                sed -i '1i #include "../include/ksu.h"' "$f"
+              fi
+            fi
+          done
 
-          # 3. 注释掉 cpu_spoof.c 中未使用的变量 cs
+          # 4. 注释掉 cpu_spoof.c 中未使用的变量 cs
           if [ -f "drivers/kernelsu/feature/cpu_spoof.c" ]; then
             sed -i 's/struct clocksource \*cs = \*curr_cs_ptr;/\/\* struct clocksource *cs = *curr_cs_ptr; \*\//g' drivers/kernelsu/feature/cpu_spoof.c
           fi
