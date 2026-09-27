@@ -57,18 +57,6 @@ jobs:
             fi
           done
 
-          # 3. 修复 supercall 模块的头文件路径与缺失的函数声明
-          if [ -f "drivers/kernelsu/supercall/dispatch.c" ]; then
-            sed -i 's|#include "../include/core_hook.h"|#include "../core_hook.h"|g' drivers/kernelsu/supercall/dispatch.c
-          fi
-          for f in drivers/kernelsu/supercall/perm.c drivers/kernelsu/supercall/supercall.c; do
-            if [ -f "$f" ]; then
-              if ! grep -q "include.*ksu.h" "$f"; then
-                sed -i '1i #include "../include/ksu.h"' "$f"
-              fi
-            fi
-          done
-
           # 【修复 SELinux 模块兼容性】
           if [ -d "drivers/kernelsu/selinux" ]; then
             # 1. 恢复 5.4 内核本来就有的 flex_array.h 头文件引用（确保 sepolicy.h 能正常解析宏）
