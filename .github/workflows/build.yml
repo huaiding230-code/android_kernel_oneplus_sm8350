@@ -37,20 +37,13 @@ jobs:
           git clone --depth=1 https://github.com/huaiding230-code/SukiSU-Ultra KernelSU
           bash KernelSU/kernel/setup.sh main
 
-          # 【新增】精准修复 throne_tracker.c 漏掉头文件引用的问题
-          if [ -f "drivers/kernelsu/manager/throne_tracker.c" ]; then
-            if ! grep -q "manager_identity.h" drivers/kernelsu/manager/throne_tracker.c; then
-              sed -i '1i #include "manager_identity.h"' drivers/kernelsu/manager/throne_tracker.c
-            fi
-          fi
-
-          # 【精准修复 selinux.c 缺少内核头文件】
-          if [ -f "drivers/kernelsu/selinux/selinux.c" ]; then
-              if ! grep -q "linux/version.h" drivers/kernelsu/selinux/selinux.c; then
-                  sed -i '1i #include <linux/version.h>\n#include <linux/types.h>\n#include <linux/cred.h>' drivers/kernelsu/selinux/selinux.c
-              fi
-          fi
-  
+          # # 【新增】精准修复 throne_tracker.c 漏掉头文件引用的问题
+          # if [ -f "drivers/kernelsu/manager/throne_tracker.c" ]; then
+          #   if ! grep -q "manager_identity.h" drivers/kernelsu/manager/throne_tracker.c; then
+          #     sed -i '1i #include "manager_identity.h"' drivers/kernelsu/manager/throne_tracker.c
+          #   fi
+          # fi
+          
           echo "2. 屏蔽 5.4 内核不兼容的函数与文件"
           if [ -f "drivers/kernelsu/core/init.c" ]; then
               sed -i 's/\(ksu_app_profile_init();\)/\/\* \1 \*\//g' drivers/kernelsu/core/init.c
