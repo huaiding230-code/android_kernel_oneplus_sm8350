@@ -187,7 +187,7 @@ jobs:
           echo "========================================"
           echo "5. 开始多核极速编译内核"
           echo "========================================"
-          make "${MAKE_ARGS[@]}" -j"$(nproc)"
+          make -k "${MAKE_ARGS[@]}" -j"$(nproc)"
           
        # 5. 打包 AnyKernel3 (与纯净版 1:1 完全对齐)
       - name: Pack with AnyKernel3
