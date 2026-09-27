@@ -53,6 +53,14 @@ jobs:
             rm -f drivers/kernelsu/feature/selinux_hide.c
             echo "已移除不兼容的 selinux_hide.c"
           fi
+          # 自动修复 SukiSU 头文件引用路径问题
+          cd drivers/kernelsu
+          if [ -d "include" ]; then
+            # 确保 supercall 和其他子目录能正确找到 include 下的头文件
+            ln -sf ../include include/core_hook.h || true
+            # 如果 allowlist.h 在其他地方，建立软链接或复制
+          fi
+          cd ../..
 
           # 1. 清理 syscall_event_bridge.c 中对 sulog 的头文件引用和相关调用
           if [ -f "drivers/kernelsu/hook/syscall_event_bridge.c" ]; then
@@ -93,6 +101,11 @@ jobs:
           fi  
   
           echo "SukiSU-Ultra 和 SUSFS 整合完毕。"
+          # 修复头文件找不到的软链接
+          cd drivers/kernelsu
+          mkdir -p supercall/include
+          ln -sf ../../include ./include_dir || true
+          cd ../..
           
       - name: Build Integrated Kernel
         run: |
