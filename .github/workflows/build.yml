@@ -43,13 +43,19 @@ jobs:
           sed -i '/selinux_hide.o/d' drivers/kernelsu/feature/Kbuild || true
           sed -i '/selinux_hide.o/d' drivers/kernelsu/Kbuild || true
 
-          # 2. 完美解决 feature.h 路径问题：直接将 feature.h 复制到 feature 目录中
-          # 这样源码中原本的 #include "../feature.h" 就能直接生效，再也不会报错
-          if [ -f "drivers/kernelsu/include/feature.h" ]; then
-            cp drivers/kernelsu/include/feature.h drivers/kernelsu/feature/
-          elif [ -f "drivers/kernelsu/feature.h" ]; then
-            cp drivers/kernelsu/feature.h drivers/kernelsu/feature/
+          # 1. 终极解决 feature.h 路径问题：直接复制到同级 feature 目录并统一修改引用
+          FEATURE_H=$(find drivers/kernelsu -name "feature.h" | head -n 1)
+          if [ -n "$FEATURE_H" ]; then
+            cp "$FEATURE_H" drivers/kernelsu/feature/
           fi
+          
+          # 2. 将 feature 目录下所有 .c 文件中的相对路径全部规范化为当前目录引入
+          for f in drivers/kernelsu/feature/*.c; do
+            if [ -f "$f" ]; then
+              sed -i 's|#include "../feature.h"|#include "feature.h"|g' "$f"
+              sed -i 's|#include "../include/feature.h"|#include "feature.h"|g' "$f"
+            fi
+          done
 
           # 3. 修复 supercall 模块的头文件路径与缺失的函数声明
           if [ -f "drivers/kernelsu/supercall/dispatch.c" ]; then
@@ -85,6 +91,16 @@ jobs:
             rm -f drivers/kernelsu/feature/selinux_hide.c
             echo "已移除不兼容的 selinux_hide.c"
           fi
+
+          # 1. 清理 syscall_event_bridge.c 中对 sulog 的头文件引用和相关调用
+          if [ -f "drivers/kernelsu/hook/syscall_event_bridge.c" ]; then
+            sed -i '/#include "sulog\/event.h"/d' drivers/kernelsu/hook/syscall_event_bridge.c
+            sed -i '/ksu_sulog/d' drivers/kernelsu/hook/syscall_event_bridge.c
+          fi
+
+          # 2. 补全空文件夹与空头文件，防止其他文件因找不到 event.h 报错
+          mkdir -p drivers/kernelsu/sulog
+          touch drivers/kernelsu/sulog/event.h
       
           # 【真正修复】ksud_integration.c 的结构体重定义与变量缺失
           if [ -f "drivers/kernelsu/runtime/ksud_integration.c" ]; then
