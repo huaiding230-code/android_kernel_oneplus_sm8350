@@ -50,15 +50,12 @@ jobs:
               sed -i 's/\(ksu_lsm_hook_exit();\)/\/\* \1 \*\//g' drivers/kernelsu/core/init.c
           fi
       
-          if [ -f "drivers/kernelsu/feature/kernel_umount.c" ]; then
-              > drivers/kernelsu/feature/kernel_umount.c
-          fi
-      
-          # 【新增】清空与 ksud.h 冲突且不兼容的 ksud_integration.c
+           # 修复或屏蔽与 5.4 内核不兼容的 ksud_integration.c
           if [ -f "drivers/kernelsu/runtime/ksud_integration.c" ]; then
+              # 如果不想让它报错，可以直接清空或用安全方式跳过
               > drivers/kernelsu/runtime/ksud_integration.c
           fi
-  
+        
           echo "========================================"
           echo "3. 注入 SUSFS 模块与内核补丁"
           echo "========================================"
