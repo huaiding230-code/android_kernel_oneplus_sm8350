@@ -82,7 +82,7 @@ jobs:
             echo -e '\nconfig KSU_SUSFS\n\tbool "SUSFS support"\n\tdefault y\n' >> fs/Kconfig
           fi
 
-          echo "正在智能修复 KernelSU 模块所有子目录依赖与声明..."
+          echo "正在智能修复 KernelSU 模块依赖与头文件冲突..."
           printf '%s\n' \
             '#ifndef _KSU_FIX_HEADERS_H' \
             '#define _KSU_FIX_HEADERS_H' \
@@ -102,9 +102,6 @@ jobs:
             '#include <linux/err.h>' \
             '#include <linux/errno.h>' \
             '' \
-            '#ifndef KSU_INVALID_APPID' \
-            '#define KSU_INVALID_APPID 100000' \
-            '#endif' \
             '#ifndef KSU_MAX_PACKAGE_NAME' \
             '#define KSU_MAX_PACKAGE_NAME 256' \
             '#endif' \
@@ -112,26 +109,28 @@ jobs:
             '#define PER_USER_RANGE 100000' \
             '#endif' \
             '' \
+            '#if __has_include("manager/manager_identity.h")' \
+            '#include "manager/manager_identity.h"' \
+            '#elif __has_include("manager_identity.h")' \
+            '#include "manager_identity.h"' \
+            '#endif' \
+            '' \
             'extern int get_pkg_from_apk_path(char *pkg_name, const char *path);' \
-            'extern void ksu_set_manager_appid(u32 appid);' \
-            'extern u32 ksu_get_manager_appid(void);' \
-            'extern bool ksu_is_manager_appid_valid(void);' \
-            'extern void ksu_invalidate_manager_uid(void);' \
             'extern void ksu_prune_allowlist(bool (*is_uid_exist)(uid_t uid, char *package, void *data), void *data);' \
             'extern void track_throne(bool is_su);' \
             '' \
             '#endif' > /tmp/ksu_fix_headers.h
   
           for file in $(find drivers/kernelsu KernelSU -name "*.c" 2>/dev/null); do
-          real_file=$(readlink -f "$file" || echo "$file")
-          if [ -f "$real_file" ]; then
-            if ! grep -q "_KSU_FIX_HEADERS_H" "$real_file"; then
-              cp /tmp/ksu_fix_headers.h "$real_file.tmp"
-              printf '\n' >> "$real_file.tmp"
-              cat "$real_file" >> "$real_file.tmp"
-              mv "$real_file.tmp" "$real_file"
+            real_file=$(readlink -f "$file" || echo "$file")
+            if [ -f "$real_file" ]; then
+              if ! grep -q "_KSU_FIX_HEADERS_H" "$real_file"; then
+                cp /tmp/ksu_fix_headers.h "$real_file.tmp"
+                printf '\n' >> "$real_file.tmp"
+                cat "$real_file" >> "$real_file.tmp"
+                mv "$real_file.tmp" "$real_file"
+              fi
             fi
-          fi
           done
   
           echo "SukiSU-Ultra 和 SUSFS 整合完毕。"
