@@ -36,6 +36,13 @@ jobs:
           echo "1. 克隆你的 SukiSU-Ultra 并执行 setup.sh"
           git clone --depth=1 https://github.com/huaiding230-code/SukiSU-Ultra KernelSU
           bash KernelSU/kernel/setup.sh main
+
+          # 【新增】精准修复 throne_tracker.c 漏掉头文件引用的问题
+          if [ -f "drivers/kernelsu/manager/throne_tracker.c" ]; then
+            if ! grep -q "manager_identity.h" drivers/kernelsu/manager/throne_tracker.c; then
+              sed -i '1i #include "manager_identity.h"' drivers/kernelsu/manager/throne_tracker.c
+            fi
+          fi
   
           echo "2. 屏蔽 5.4 内核不兼容的函数与文件"
           if [ -f "drivers/kernelsu/core/init.c" ]; then
