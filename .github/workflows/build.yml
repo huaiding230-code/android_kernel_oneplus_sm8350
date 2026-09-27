@@ -126,8 +126,8 @@ jobs:
             '#endif' > /tmp/ksu_fix_headers.h
   
           for file in $(find drivers/kernelsu KernelSU -name "*.c" 2>/dev/null); do
-          # 必须排除 allowlist.c，防止全局注入破坏它
-            if [[ "$file" == *"allowlist.c"* ]]; then
+            # 排除 allowlist.c 和 app_profile.c
+            if [[ "$file" == *"allowlist.c"* || "$file" == *"app_profile.c"* ]]; then
               continue
             fi
             real_file=$(readlink -f "$file" || echo "$file")
