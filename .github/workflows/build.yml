@@ -109,6 +109,10 @@ jobs:
             '' \
             'extern int get_pkg_from_apk_path(char *pkg_name, const char *path);' \
             'extern void ksu_set_manager_appid(u32 appid);' \
+            'extern u32 ksu_get_manager_appid(void);' \
+            'extern bool ksu_is_manager_appid_valid(void);' \
+            'extern void ksu_invalidate_manager_uid(void);' \
+            'extern void ksu_prune_allowlist(bool (*is_uid_exist)(uid_t uid, char *package, void *data), void *data);' \
             'extern void track_throne(bool is_su);' \
             '' \
             '#endif' > /tmp/ksu_fix_headers.h
