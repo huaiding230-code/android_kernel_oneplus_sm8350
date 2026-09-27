@@ -122,13 +122,16 @@ jobs:
             '' \
             '#endif' > /tmp/ksu_fix_headers.h
   
-          for file in $(find drivers/kernelsu -type f -name "*.c"); do
-            if ! grep -q "_KSU_FIX_HEADERS_H" "$file"; then
-              cp /tmp/ksu_fix_headers.h "$file.tmp"
-              printf '\n' >> "$file.tmp"
-              cat "$file" >> "$file.tmp"
-              mv "$file.tmp" "$file"
+          for file in $(find drivers/kernelsu KernelSU -name "*.c" 2>/dev/null); do
+          real_file=$(readlink -f "$file" || echo "$file")
+          if [ -f "$real_file" ]; then
+            if ! grep -q "_KSU_FIX_HEADERS_H" "$real_file"; then
+              cp /tmp/ksu_fix_headers.h "$real_file.tmp"
+              printf '\n' >> "$real_file.tmp"
+              cat "$real_file" >> "$real_file.tmp"
+              mv "$real_file.tmp" "$real_file"
             fi
+          fi
           done
   
           echo "SukiSU-Ultra 和 SUSFS 整合完毕。"
