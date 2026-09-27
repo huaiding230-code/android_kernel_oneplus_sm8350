@@ -42,47 +42,7 @@ jobs:
           rm -f drivers/kernelsu/feature/selinux_hide.c || true
           sed -i '/selinux_hide.o/d' drivers/kernelsu/feature/Kbuild || true
           sed -i '/selinux_hide.o/d' drivers/kernelsu/Kbuild || true
-
-          # 1. 终极解决 feature.h 路径问题：直接复制到同级 feature 目录并统一修改引用
-          FEATURE_H=$(find drivers/kernelsu -name "feature.h" | head -n 1)
-          if [ -n "$FEATURE_H" ]; then
-            cp "$FEATURE_H" drivers/kernelsu/feature/
-          fi
           
-          # 2. 将 feature 目录下所有 .c 文件中的相对路径全部规范化为当前目录引入
-          for f in drivers/kernelsu/feature/*.c; do
-            if [ -f "$f" ]; then
-              sed -i 's|#include "../feature.h"|#include "feature.h"|g' "$f"
-              sed -i 's|#include "../include/feature.h"|#include "feature.h"|g' "$f"
-            fi
-          done
-
-          # 【修复 SELinux 模块兼容性】
-          if [ -d "drivers/kernelsu/selinux" ]; then
-            # 1. 恢复 5.4 内核本来就有的 flex_array.h 头文件引用（确保 sepolicy.h 能正常解析宏）
-            if [ -f "drivers/kernelsu/selinux/sepolicy.h" ]; then
-              if ! grep -q "flex_array.h" drivers/kernelsu/selinux/sepolicy.h; then
-                sed -i '1i #include <linux/flex_array.h>' drivers/kernelsu/selinux/sepolicy.h
-              fi
-            fi
-          
-          # 4. 注释掉 cpu_spoof.c 中未使用的变量 cs
-          if [ -f "drivers/kernelsu/feature/cpu_spoof.c" ]; then
-            sed -i 's/struct clocksource \*cs = \*curr_cs_ptr;/\/\* struct clocksource *cs = *curr_cs_ptr; \*\//g' drivers/kernelsu/feature/cpu_spoof.c
-          fi
-
-          # # 【新增】精准修复 throne_tracker.c 漏掉头文件引用的问题
-          # if [ -f "drivers/kernelsu/manager/throne_tracker.c" ]; then
-          #   if ! grep -q "manager_identity.h" drivers/kernelsu/manager/throne_tracker.c; then
-          #     sed -i '1i #include "manager_identity.h"' drivers/kernelsu/manager/throne_tracker.c
-          #   fi
-          # fi
-          
-          echo "2. 屏蔽 5.4 内核不兼容的函数与文件"
-          if [ -f "drivers/kernelsu/core/init.c" ]; then
-              sed -i 's/\(ksu_app_profile_init();\)/\/\* \1 \*\//g' drivers/kernelsu/core/init.c
-              sed -i 's/\(ksu_lsm_hook_exit();\)/\/\* \1 \*\//g' drivers/kernelsu/core/init.c
-          fi
           # 【新增】移除与低版本内核 SELinux 不兼容的 selinux_hide.c
           if [ -f "drivers/kernelsu/feature/selinux_hide.c" ]; then
             rm -f drivers/kernelsu/feature/selinux_hide.c
@@ -93,21 +53,6 @@ jobs:
           if [ -f "drivers/kernelsu/hook/syscall_event_bridge.c" ]; then
             sed -i '/#include "sulog\/event.h"/d' drivers/kernelsu/hook/syscall_event_bridge.c
             sed -i '/ksu_sulog/d' drivers/kernelsu/hook/syscall_event_bridge.c
-          fi
-
-          # 2. 补全空文件夹与空头文件，防止其他文件因找不到 event.h 报错
-          mkdir -p drivers/kernelsu/sulog
-          touch drivers/kernelsu/sulog/event.h
-      
-          # 【真正修复】ksud_integration.c 的结构体重定义与变量缺失
-          if [ -f "drivers/kernelsu/runtime/ksud_integration.c" ]; then
-              # 1. 注释掉 ksud_integration.c 里与 ksud.h 冲突的重复结构体定义
-              sed -i '/struct user_arg_ptr {/,/^};/s/^/\/\//' drivers/kernelsu/runtime/ksud_integration.c
-              
-              # 2. 如果文件里缺少 ksu_late_loaded 声明，自动在头部补上
-              if ! grep -q "extern bool ksu_late_loaded;" drivers/kernelsu/runtime/ksud_integration.c; then
-                  sed -i '/#include "runtime\/ksud.h"/a extern bool ksu_late_loaded;' drivers/kernelsu/runtime/ksud_integration.c
-              fi
           fi
         
           echo "========================================"
