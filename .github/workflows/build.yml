@@ -90,6 +90,9 @@ jobs:
             '#include <linux/version.h>' \
             '#include <linux/types.h>' \
             '#include <linux/stddef.h>' \
+            '#include <linux/cred.h>' \
+            '#include <linux/sched.h>' \
+            '#include <linux/uidgid.h>' \
             '#include <linux/list.h>' \
             '#include <linux/mutex.h>' \
             '#include <linux/hashtable.h>' \
