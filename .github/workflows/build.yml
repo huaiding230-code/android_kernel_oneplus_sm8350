@@ -31,7 +31,7 @@ jobs:
           mkdir -p toolchain
           git clone --depth=1 https://github.com/kdrag0n/proton-clang.git toolchain/proton-clang
           echo "${GITHUB_WORKSPACE}/toolchain/proton-clang/bin" >> "${GITHUB_PATH}"
-          
+                
       - name: Integrate SukiSU Ultra + SUSFS
         run: |
           set -euo pipefail
@@ -83,12 +83,27 @@ jobs:
           fi
   
           echo "SukiSU-Ultra 和 SUSFS 整合完毕。"
-      
+
+      - name: Setup ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-${{ runner.os }}-${{ github.ref }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ runner.os }}-${{ github.ref }}-
+            ccache-${{ runner.os }}-
+      # ============================================================
           
       - name: Build Integrated Kernel
         run: |
           set -euo pipefail
           cd kernel_source
+
+          # ====================【在这里插入下面 4 行】====================
+          sudo apt-get install -y ccache
+          export CCACHE_DIR="${HOME}/.cache/ccache"
+          ccache -M 5G
+          ccache -z
           
           # 配置 Clang 工具链路径
           CLANG_DIR="${GITHUB_WORKSPACE}/toolchain/proton-clang"
@@ -118,7 +133,7 @@ jobs:
             ARCH=arm64
             LLVM=1
             LLVM_IAS=1
-            CC=clang
+            CC="ccache clang"
             KCFLAGS="-Wno-unused-function"
             CROSS_COMPILE=aarch64-linux-gnu-
             CROSS_COMPILE_ARM32=arm-linux-gnueabi-
