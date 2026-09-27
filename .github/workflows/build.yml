@@ -81,9 +81,38 @@ jobs:
           if ! grep -q "CONFIG_KSU_SUSFS" fs/Kconfig; then
             echo -e '\nconfig KSU_SUSFS\n\tbool "SUSFS support"\n\tdefault y\n' >> fs/Kconfig
           fi
+
+          # ============================================================
+          # 4. 自动修补 Manager 目录下所有 .c 文件的头文件与宏缺失问题
+          # ============================================================
+          echo "正在自动批量修复 Manager 模块头文件依赖..."
+          cat << 'EOF' > /tmp/ksu_fix_headers.h
+          #include <linux/types.h>
+          #include <linux/list.h>
+          #include <linux/fs.h>
+          #include <linux/printk.h>
+          #include <linux/string.h>
+          #include <linux/slab.h>
+          #include <linux/err.h>
+          #include <linux/errno.h>
+          #include "../include/ksu.h"
+          
+          #ifndef KSU_INVALID_APPID
+          #define KSU_INVALID_APPID 100000
+          #endif
+          #ifndef KSU_MAX_PACKAGE_NAME
+          #define KSU_MAX_PACKAGE_NAME 256
+          #endif
+          EOF
+
+        for file in drivers/kernelsu/manager/*.c; do
+          if [ -f "$file" ]; then
+            cat /tmp/ksu_fix_headers.h "$file" > "$file.tmp" && mv "$file.tmp" "$file"
+          fi
+        done
   
           echo "SukiSU-Ultra 和 SUSFS 整合完毕。"
-
+          
       - name: Build Integrated Kernel
         run: |
           set -euo pipefail
