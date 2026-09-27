@@ -111,7 +111,15 @@ jobs:
             '#ifndef KSU_DEFAULT_SELINUX_DOMAIN' \
             '#define KSU_DEFAULT_SELINUX_DOMAIN "u:r:su:s0"' \
             '#endif' \
+            '#ifndef KSU_INVALID_APPID' \
+            '#define KSU_INVALID_APPID 0' \
+            '#endif' \
             '' \
+            'extern uid_t ksu_manager_appid;' \
+            'extern void ksu_set_manager_appid(uid_t uid);' \
+            'extern uid_t ksu_get_manager_appid(void);' \
+            'extern bool ksu_is_manager_appid_valid(void);' \
+            'extern void ksu_invalidate_manager_uid(void);' \
             'extern int get_pkg_from_apk_path(char *pkg_name, const char *path);' \
             'extern void ksu_prune_allowlist(bool (*is_uid_exist)(uid_t uid, char *package, void *data), void *data);' \
             'extern void track_throne(bool is_su);' \
