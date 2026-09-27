@@ -115,19 +115,7 @@ jobs:
             '#ifndef KSU_DEFAULT_SELINUX_DOMAIN' \
             '#define KSU_DEFAULT_SELINUX_DOMAIN "u:r:su:s0"' \
             '#endif' \
-            '' \
-            '#if __has_include("manager/manager_identity.h")' \
-            '#include "manager/manager_identity.h"' \
-            '#elif __has_include("manager_identity.h")' \
-            '#include "manager_identity.h"' \
-            '#endif' \
-            '' \
-            '#if __has_include("policy/allowlist.h")' \
-            '#include "policy/allowlist.h"' \
-            '#elif __has_include("allowlist.h")' \
-            '#include "allowlist.h"' \
-            '#endif' \
-            '' \
+            '' \    
             'extern int get_pkg_from_apk_path(char *pkg_name, const char *path);' \
             'extern void ksu_prune_allowlist(bool (*is_uid_exist)(uid_t uid, char *package, void *data), void *data);' \
             'extern void track_throne(bool is_su);' \
