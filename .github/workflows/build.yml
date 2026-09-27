@@ -126,11 +126,10 @@ jobs:
             '#endif' > /tmp/ksu_fix_headers.h
   
           for file in $(find drivers/kernelsu KernelSU -name "*.c" 2>/dev/null); do
-            # 排除 allowlist.c，防止破坏其内部的结构体定义和宏顺序
+          # 必须排除 allowlist.c，防止全局注入破坏它
             if [[ "$file" == *"allowlist.c"* ]]; then
               continue
             fi
-            
             real_file=$(readlink -f "$file" || echo "$file")
             if [ -f "$real_file" ]; then
               if ! grep -q "_KSU_FIX_HEADERS_H" "$real_file"; then
