@@ -82,14 +82,19 @@ jobs:
             echo -e '\nconfig KSU_SUSFS\n\tbool "SUSFS support"\n\tdefault y\n' >> fs/Kconfig
           fi
 
-          echo "正在智能修复 Manager 模块依赖与函数声明..."
+          echo "正在智能修复 KernelSU 模块所有子目录依赖与声明..."
           printf '%s\n' \
             '#ifndef _KSU_FIX_HEADERS_H' \
             '#define _KSU_FIX_HEADERS_H' \
             '' \
             '#include <linux/version.h>' \
             '#include <linux/types.h>' \
+            '#include <linux/stddef.h>' \
             '#include <linux/list.h>' \
+            '#include <linux/mutex.h>' \
+            '#include <linux/hashtable.h>' \
+            '#include <linux/rcupdate.h>' \
+            '#include <linux/init.h>' \
             '#include <linux/fs.h>' \
             '#include <linux/printk.h>' \
             '#include <linux/string.h>' \
@@ -117,14 +122,12 @@ jobs:
             '' \
             '#endif' > /tmp/ksu_fix_headers.h
   
-          for file in drivers/kernelsu/manager/*.c; do
-            if [ -f "$file" ]; then
-              if ! grep -q "_KSU_FIX_HEADERS_H" "$file"; then
-                cp /tmp/ksu_fix_headers.h "$file.tmp"
-                printf '\n' >> "$file.tmp"
-                cat "$file" >> "$file.tmp"
-                mv "$file.tmp" "$file"
-              fi
+          for file in $(find drivers/kernelsu -type f -name "*.c"); do
+            if ! grep -q "_KSU_FIX_HEADERS_H" "$file"; then
+              cp /tmp/ksu_fix_headers.h "$file.tmp"
+              printf '\n' >> "$file.tmp"
+              cat "$file" >> "$file.tmp"
+              mv "$file.tmp" "$file"
             fi
           done
   
