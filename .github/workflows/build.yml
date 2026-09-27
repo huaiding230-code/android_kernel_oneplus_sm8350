@@ -46,11 +46,17 @@ jobs:
   
           echo "2. 屏蔽 5.4 内核不兼容的函数与文件"
           if [ -f "drivers/kernelsu/core/init.c" ]; then
-            sed -i 's/\(ksu_app_profile_init();\)/\/\* \1 \*\//g' drivers/kernelsu/core/init.c
-            sed -i 's/\(ksu_lsm_hook_exit();\)/\/\* \1 \*\//g' drivers/kernelsu/core/init.c
+              sed -i 's/\(ksu_app_profile_init();\)/\/\* \1 \*\//g' drivers/kernelsu/core/init.c
+              sed -i 's/\(ksu_lsm_hook_exit();\)/\/\* \1 \*\//g' drivers/kernelsu/core/init.c
           fi
+      
           if [ -f "drivers/kernelsu/feature/kernel_umount.c" ]; then
-            > drivers/kernelsu/feature/kernel_umount.c
+              > drivers/kernelsu/feature/kernel_umount.c
+          fi
+      
+          # 【新增】清空与 ksud.h 冲突且不兼容的 ksud_integration.c
+          if [ -f "drivers/kernelsu/runtime/ksud_integration.c" ]; then
+              > drivers/kernelsu/runtime/ksud_integration.c
           fi
   
           echo "========================================"
