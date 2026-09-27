@@ -69,6 +69,25 @@ jobs:
             fi
           done
 
+          # 【修复 SELinux 模块兼容性】
+          if [ -d "drivers/kernelsu/selinux" ]; then
+            # 1. 恢复 5.4 内核本来就有的 flex_array.h 头文件引用（确保 sepolicy.h 能正常解析宏）
+            if [ -f "drivers/kernelsu/selinux/sepolicy.h" ]; then
+              if ! grep -q "flex_array.h" drivers/kernelsu/selinux/sepolicy.h; then
+                sed -i '1i #include <linux/flex_array.h>' drivers/kernelsu/selinux/sepolicy.h
+              fi
+            fi
+
+            # 2. 确保 rules.c 头部正确引入了 sepolicy.h 和内核 policydb 头文件
+            if [ -f "drivers/kernelsu/selinux/rules.c" ]; then
+              if ! grep -q "sepolicy.h" drivers/kernelsu/selinux/rules.c; then
+                sed -i '1i #include "sepolicy.h"' drivers/kernelsu/selinux/rules.c
+              fi
+              sed -i 's|#include "ss/policydb.h"|#include "../../../security/selinux/ss/policydb.h"|g' drivers/kernelsu/selinux/rules.c
+              sed -i 's|#include "ss/services.h"|#include "../../../security/selinux/ss/services.h"|g' drivers/kernelsu/selinux/rules.c
+            fi
+          fi
+          
           # 4. 注释掉 cpu_spoof.c 中未使用的变量 cs
           if [ -f "drivers/kernelsu/feature/cpu_spoof.c" ]; then
             sed -i 's/struct clocksource \*cs = \*curr_cs_ptr;/\/\* struct clocksource *cs = *curr_cs_ptr; \*\//g' drivers/kernelsu/feature/cpu_spoof.c
