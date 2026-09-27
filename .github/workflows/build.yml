@@ -37,6 +37,13 @@ jobs:
           git clone --depth=1 https://github.com/huaiding230-code/SukiSU-Ultra KernelSU
           bash KernelSU/kernel/setup.sh main
 
+          # 【自动修复】防止重新克隆源码后旧报错死灰复燃
+          sed -i '/#include <linux\/flex_array.h>/d' drivers/kernelsu/selinux/sepolicy.h || true
+          sed -i 's|#include "ss/policydb.h"|#include "../../../security/selinux/ss/policydb.h"|g' drivers/kernelsu/selinux/rules.c || true
+          sed -i 's|#include "ss/services.h"|#include "../../../security/selinux/ss/services.h"|g' drivers/kernelsu/selinux/rules.c || true
+          sed -i 's/struct clocksource \*cs = \*curr_cs_ptr;/\/\* struct clocksource *cs = *curr_cs_ptr; \*\//g' drivers/kernelsu/feature/cpu_spoof.c || true
+          sed -i 's|#include "../feature.h"|#include "../include/feature.h"|g' drivers/kernelsu/feature/adb_root.c drivers/kernelsu/feature/kernel_umount.c || true
+
           # # 【新增】精准修复 throne_tracker.c 漏掉头文件引用的问题
           # if [ -f "drivers/kernelsu/manager/throne_tracker.c" ]; then
           #   if ! grep -q "manager_identity.h" drivers/kernelsu/manager/throne_tracker.c; then
