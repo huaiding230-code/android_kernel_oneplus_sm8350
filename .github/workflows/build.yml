@@ -99,9 +99,18 @@ jobs:
           set -euo pipefail
           cd kernel_source
 
-          # ====================【在这里插入下面 4 行】====================
+          # 1. 安装与路径设置
           sudo apt-get install -y ccache
-          export CCACHE_DIR="${HOME}/.cache/ccache"
+          export CCACHE_DIR="/home/runner/.cache/ccache"
+          
+          # 2. 开启压缩（能让 5G 空间多存 3 倍的内核缓存）
+          export CCACHE_COMPRESS=1
+          export CCACHE_COMPRESSLEVEL=6
+  
+          # 3. 忽略时间戳与时间宏，防止内核重复编译未修改的文件
+          export CCACHE_SLOPPINESS="file_macro,time_macros,include_file_mtime,include_file_ctime"
+  
+          # 4. 设置上限并重置统计
           ccache -M 5G
           ccache -z
           
