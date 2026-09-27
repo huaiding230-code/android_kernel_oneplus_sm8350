@@ -50,10 +50,15 @@ jobs:
               sed -i 's/\(ksu_lsm_hook_exit();\)/\/\* \1 \*\//g' drivers/kernelsu/core/init.c
           fi
       
-           # 修复或屏蔽与 5.4 内核不兼容的 ksud_integration.c
+          # 【真正修复】ksud_integration.c 的结构体重定义与变量缺失
           if [ -f "drivers/kernelsu/runtime/ksud_integration.c" ]; then
-              # 如果不想让它报错，可以直接清空或用安全方式跳过
-              > drivers/kernelsu/runtime/ksud_integration.c
+              # 1. 注释掉 ksud_integration.c 里与 ksud.h 冲突的重复结构体定义
+              sed -i '/struct user_arg_ptr {/,/^};/s/^/\/\//' drivers/kernelsu/runtime/ksud_integration.c
+              
+              # 2. 如果文件里缺少 ksu_late_loaded 声明，自动在头部补上
+              if ! grep -q "extern bool ksu_late_loaded;" drivers/kernelsu/runtime/ksud_integration.c; then
+                  sed -i '/#include "runtime\/ksud.h"/a extern bool ksu_late_loaded;' drivers/kernelsu/runtime/ksud_integration.c
+              fi
           fi
         
           echo "========================================"
