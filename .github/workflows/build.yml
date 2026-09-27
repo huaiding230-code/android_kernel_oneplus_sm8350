@@ -37,12 +37,6 @@ jobs:
           git clone --depth=1 https://github.com/huaiding230-code/SukiSU-Ultra KernelSU
           bash KernelSU/kernel/setup.sh main
 
-          # 1. 彻底清理 5.4 内核不兼容的高级模块，并同步从 Kbuild 中抹除编译条目
-          rm -rf drivers/kernelsu/sulog || true
-          rm -f drivers/kernelsu/feature/selinux_hide.c || true
-          sed -i '/selinux_hide.o/d' drivers/kernelsu/feature/Kbuild || true
-          sed -i '/selinux_hide.o/d' drivers/kernelsu/Kbuild || true
-          
           # 【新增】移除与低版本内核 SELinux 不兼容的 selinux_hide.c
           if [ -f "drivers/kernelsu/feature/selinux_hide.c" ]; then
             rm -f drivers/kernelsu/feature/selinux_hide.c
