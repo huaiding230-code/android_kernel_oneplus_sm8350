@@ -73,11 +73,13 @@ jobs:
           # 自动修复 susfs.h 中 struct filename 和 struct stat 的前置声明缺失问题
           sed -i '/int susfs_add_sus_path/i struct filename;\nstruct stat;' include/linux/susfs.h
 
-          # 2. 自动匹配并应用 5.4 内核的 SUSFS 补丁 (注入 path_umount 及 VFS 钩子)
-          SUSFS_PATCH=$(find /tmp/susfs4ksu -type f -name "*5.4*.patch" | head -n 1)
-          if [ -n "$SUSFS_PATCH" ]; then
-            echo "[+] 正在应用 5.4 SUSFS 内核补丁: $SUSFS_PATCH"
-            patch -p1 < "$SUSFS_PATCH" || true
+          # 2. 优先应用仓库 patch 目录下的 5.4 内核 SUSFS 补丁
+          if [ -f "patch/50_add_susfs_in_kernel-5.4.patch" ]; then
+              echo "[+] 正在应用本地 patch/50_add_susfs_in_kernel-5.4.patch 补丁..."
+              patch -p1 < patch/50_add_susfs_in_kernel-5.4.patch
+          elif [ -f "../patch/50_add_susfs_in_kernel-5.4.patch" ]; then
+              echo "[+] 正在应用本地 ../patch/50_add_susfs_in_kernel-5.4.patch 补丁..."
+              patch -p1 < ../patch/50_add_susfs_in_kernel-5.4.patch
           fi
 
           # 3. 注入 Kconfig 与 Makefile
