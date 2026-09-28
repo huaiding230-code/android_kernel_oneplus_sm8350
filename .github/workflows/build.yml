@@ -43,13 +43,11 @@ jobs:
           
           # 2. 剔除 5.4 内核不兼容的 selinux_hide 模块
           rm -f drivers/kernelsu/feature/selinux_hide.c || true
-          sed -i '/selinux_hide.o/d' drivers/kernelsu/feature/Kbuild || true
           sed -i '/selinux_hide.o/d' drivers/kernelsu/Kbuild || true
 
           # 3. 剔除 5.4 内核不兼容的 adb_root 模块
           rm -f drivers/kernelsu/feature/adb_root.c || true
           sed -i '/adb_root.o/d' drivers/kernelsu/Kbuild || true
-          sed -i '/adb_root.o/d' drivers/kernelsu/feature/Kbuild || true
           
           # 4. 清理 syscall_event_bridge.c 中对 sulog 的残留调用
           if [ -f "drivers/kernelsu/hook/syscall_event_bridge.c" ]; then
