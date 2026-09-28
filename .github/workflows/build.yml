@@ -78,16 +78,17 @@ jobs:
           if [ -n "$SUSFS_PATCH" ]; then
             echo "[+] 正在应用 5.4 SUSFS 内核补丁: $SUSFS_PATCH"
             patch -p1 < "$SUSFS_PATCH" || true
-          fi
 
-            echo "===== 打印所有补丁失败的 .rej 文件 ====="
-            for file in $(find . -name "*.rej"); do
-              echo "----------------------------------------"
-              echo "失败详情: $file"
-              echo "----------------------------------------"
-              cat "$file"
-            done
-            # =========================================================
+            REJ_FILES=$(find . -name "*.rej")
+            if [ -n "$REJ_FILES" ]; then
+              echo "===== 打印所有补丁失败的 .rej 文件 ====="
+              for file in $REJ_FILES; do
+                echo "----------------------------------------"
+                echo "失败详情: $file"
+                echo "----------------------------------------"
+                cat "$file"
+              done
+            fi
           fi
 
           # 3. 注入 Kconfig 与 Makefile
