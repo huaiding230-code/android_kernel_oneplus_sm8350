@@ -24,6 +24,10 @@
 #include <linux/ctype.h>
 #include <linux/susfs.h>
 
+#ifndef INODE_STATE_SUS_KSTAT
+#define INODE_STATE_SUS_KSTAT (1 << 28)
+#endif
+
 #include <asm/elf.h>
 #include <asm/tlb.h>
 #include <asm/tlbflush.h>
