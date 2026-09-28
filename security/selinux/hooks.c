@@ -7485,3 +7485,6 @@ int selinux_disable(struct selinux_state *state)
 	return 0;
 }
 #endif
+
+int selinux_enforcing = 1;
+EXPORT_SYMBOL_GPL(selinux_enforcing);
