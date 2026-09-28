@@ -82,6 +82,8 @@ jobs:
             echo "[-] 错误: 未找到 susfs.c" && exit 1
           fi
           find /tmp/susfs4ksu -name "susfs*.h" -exec cp {} include/linux/ \;
+          # 自动修复 susfs.h 中 struct filename 和 struct stat 的前置声明缺失问题
+          sed -i '/int susfs_add_sus_path/i struct filename;\nstruct stat;' include/linux/susfs.h
   
           # 2. 自动匹配并应用 5.4 内核的 SUSFS 补丁 (注入 path_umount 及 VFS 钩子)
           SUSFS_PATCH=$(find /tmp/susfs4ksu -type f -name "*5.4*.patch" | head -n 1)
