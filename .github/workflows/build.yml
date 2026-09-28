@@ -60,7 +60,7 @@ jobs:
           echo "========================================"
           mkdir -p fs include/linux
           rm -rf /tmp/susfs4ksu
-          git clone --depth=1 https://gitlab.com/simonpunk/susfs4ksu.git /tmp/susfs4ksu
+          git clone --depth=1 https://github.com/huaiding230-code/susfs4ksu.git /tmp/susfs4ksu
           
           # 1. 移动 susfs.c 和头文件
           SUSFS_C=$(find /tmp/susfs4ksu -name "susfs.c" | head -n 1)
