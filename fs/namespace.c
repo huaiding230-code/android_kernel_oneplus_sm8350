@@ -4169,6 +4169,6 @@ const struct proc_ns_operations mntns_operations = {
 
 int path_umount(struct path *path, int flags)
 {
-	return do_umount(path->mnt, flags);
+	return do_umount(real_mount(path->mnt), flags);
 }
 EXPORT_SYMBOL(path_umount);
