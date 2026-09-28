@@ -42,12 +42,6 @@ jobs:
           rm -rf drivers/kernelsu/sulog || true
           sed -i '/sulog/d' drivers/kernelsu/Kbuild || true
           
-          # 2. 清理 dispatch.c 和 syscall_event_bridge.c 中的 sulog 调用与头文件引用
-          if [ -f "drivers/kernelsu/supercall/dispatch.c" ]; then
-            sed -i '/ksu_sulog/d' drivers/kernelsu/supercall/dispatch.c
-            sed -i '/#include "sulog\/event.h"/d' drivers/kernelsu/supercall/dispatch.c
-          fi
-          
           rm -f drivers/kernelsu/feature/selinux_hide.c || true
           sed -i '/selinux_hide.o/d' drivers/kernelsu/feature/Kbuild || true
           sed -i '/selinux_hide.o/d' drivers/kernelsu/Kbuild || true
@@ -74,22 +68,6 @@ jobs:
           if [ -f "drivers/kernelsu/hook/syscall_event_bridge.c" ]; then
             sed -i '/#include "sulog\/event.h"/d' drivers/kernelsu/hook/syscall_event_bridge.c
             sed -i '/ksu_sulog/d' drivers/kernelsu/hook/syscall_event_bridge.c
-          fi
-
-          # 自动修复 dispatch.c 中的 sulog 残留、头文件缺失以及 SUSFS 类型不匹配
-          DISPATCH_C="drivers/kernelsu/supercall/dispatch.c"
-          if [ -f "$DISPATCH_C" ]; then
-            # 1. 抹除 sulog 相关调用与头文件引入
-            sed -i '/sulog/d' "$DISPATCH_C"
-          
-            # 2. 补全 core_hook.h 头文件引用
-            sed -i '/#include "supercall.h"/i #include "../include/core_hook.h"' "$DISPATCH_C"
-          
-            # 3. 修复 SUSFS 调用的指针类型转换
-            sed -i 's/susfs_add_sus_path(arg)/susfs_add_sus_path((struct st_susfs_sus_path __user *)arg)/g' "$DISPATCH_C"
-            sed -i 's/susfs_add_sus_kstat(arg)/susfs_add_sus_kstat((struct st_susfs_sus_kstat __user *)arg)/g' "$DISPATCH_C"
-            sed -i 's/susfs_update_sus_kstat(arg)/susfs_update_sus_kstat((struct st_susfs_sus_kstat __user *)arg)/g' "$DISPATCH_C"
-            sed -i 's/susfs_set_uname(arg)/susfs_set_uname((struct st_susfs_uname __user *)arg)/g' "$DISPATCH_C"
           fi
         
           echo "========================================"
