@@ -936,7 +936,7 @@ static int show_smap(struct seq_file *m, void *v)
 	struct vm_area_struct *vma = v;
 
 #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-	if (vma->vm_file && susfs_sus_ino_for_filldir(file_inode(vma->vm_file)->i_ino))
+	if (vma->vm_file && susfs_sus_ino_for_filldir64(file_inode(vma->vm_file)->i_ino))
 		return 0;
 #endif
 
