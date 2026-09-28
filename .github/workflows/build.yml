@@ -55,14 +55,9 @@ jobs:
           # 自动修复 susfs.h 中 struct filename 和 struct stat 的前置声明缺失问题
           sed -i '/int susfs_add_sus_path/i struct filename;\nstruct stat;' include/linux/susfs.h
 
-          # 2. 优先应用仓库 patch 目录下的 5.4 内核 SUSFS 补丁
-          if [ -f "patch/50_add_susfs_in_kernel-5.4.patch" ]; then
-              echo "[+] 正在应用本地 patch/50_add_susfs_in_kernel-5.4.patch 补丁..."
-              patch -p1 < patch/50_add_susfs_in_kernel-5.4.patch || true
-          elif [ -f "../patch/50_add_susfs_in_kernel-5.4.patch" ]; then
-              echo "[+] 正在应用本地 ../patch/50_add_susfs_in_kernel-5.4.patch 补丁..."
-              patch -p1 < ../patch/50_add_susfs_in_kernel-5.4.patch || true
-          fi
+          # 2. 直接应用从你的 susfs4ksu 仓库中克隆下来的 5.4 内核 SUSFS 补丁
+          echo "[+] 正在应用来自 susfs4ksu 仓库的 5.4 内核 SUSFS 补丁..."
+          patch -p1 < /tmp/susfs4ksu/kernel_patches/50_add_susfs_in_kernel-5.4.patch || true
 
           # 3. 注入 Kconfig 与 Makefile
           if ! grep -q "susfs.o" fs/Makefile; then
