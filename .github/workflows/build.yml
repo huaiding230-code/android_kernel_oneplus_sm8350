@@ -66,13 +66,14 @@ jobs:
 
           # 3. 注入 Kconfig 与 Makefile
           if ! grep -q "susfs.o" fs/Makefile; then
-            echo "obj-\$(CONFIG_KSU_SUSFS) += susfs.o" >> fs/Makefile
+              # 直接暴力让内核必定编译 susfs.o，无视 Kconfig 的屏蔽
+              sed -i '1i\obj-y += susfs.o' fs/Makefile
           fi
-
+          
           if ! grep -q "CONFIG_KSU_SUSFS" fs/Kconfig; then
-            echo -e '\nconfig KSU_SUSFS\n\tbool "SUSFS support"\n\tdefault y\n' >> fs/Kconfig
+              # 将 SUSFS 配置安全地插入到 endmenu 的前面，防止被 olddefconfig 剔除
+              sed -i 's/^endmenu/config KSU_SUSFS\n\tbool "SUSFS support"\n\tdefault y\n\nendmenu/g' fs/Kconfig
           fi
-
           echo "SukiSU-Ultra 和 SUSFS 整合完毕。"
           
       - name: Build Integrated Kernel
