@@ -76,10 +76,10 @@ jobs:
           # 2. 优先应用仓库 patch 目录下的 5.4 内核 SUSFS 补丁
           if [ -f "patch/50_add_susfs_in_kernel-5.4.patch" ]; then
               echo "[+] 正在应用本地 patch/50_add_susfs_in_kernel-5.4.patch 补丁..."
-              patch -p1 < patch/50_add_susfs_in_kernel-5.4.patch
+              patch -p1 < patch/50_add_susfs_in_kernel-5.4.patch || true
           elif [ -f "../patch/50_add_susfs_in_kernel-5.4.patch" ]; then
               echo "[+] 正在应用本地 ../patch/50_add_susfs_in_kernel-5.4.patch 补丁..."
-              patch -p1 < ../patch/50_add_susfs_in_kernel-5.4.patch
+              patch -p1 < ../patch/50_add_susfs_in_kernel-5.4.patch || true
           fi
 
           # 3. 注入 Kconfig 与 Makefile
