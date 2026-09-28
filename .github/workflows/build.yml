@@ -42,11 +42,10 @@ jobs:
           rm -f drivers/kernelsu/feature/selinux_hide.c || true
           sed -i '/selinux_hide.o/d' drivers/kernelsu/feature/Kbuild || true
           sed -i '/selinux_hide.o/d' drivers/kernelsu/Kbuild || true
-
-          # 移除 sepolicy.h 中找不到的 flex_array.h 引用
-          if [ -f "drivers/kernelsu/selinux/sepolicy.h" ]; then
-            sed -i '/#include <linux\/flex_array.h>/d' drivers/kernelsu/selinux/sepolicy.h
-          fi
+          # 剔除 5.4 内核不兼容的 adb_root 模块
+          rm -f drivers/kernelsu/feature/adb_root.c || true
+          sed -i '/adb_root.o/d' drivers/kernelsu/Kbuild || true
+          sed -i '/adb_root.o/d' drivers/kernelsu/feature/Kbuild || true
 
           # 【新增】移除与低版本内核 SELinux 不兼容的 selinux_hide.c
           if [ -f "drivers/kernelsu/feature/selinux_hide.c" ]; then
