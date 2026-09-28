@@ -935,9 +935,13 @@ static int show_smap(struct seq_file *m, void *v)
 {
 	struct vm_area_struct *vma = v;
 
+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+	if (vma->vm_file && susfs_sus_ino_for_filldir(file_inode(vma->vm_file)->i_ino))
+		return 0;
+#endif
+
 	if (vma_pages(vma))
 		show_smap_vma(m, vma);
-
 	show_map_pad_vma(vma, m, show_smap_vma, true);
 
 	m_cache_vma(m, v);
