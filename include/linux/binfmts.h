@@ -7,6 +7,18 @@
 #include <asm/exec.h>
 #include <uapi/linux/binfmts.h>
 
+struct user_arg_ptr {
+#ifdef CONFIG_COMPAT
+	bool is_compat;
+#endif
+	union {
+		const char __user *const __user *native;
+#ifdef CONFIG_COMPAT
+		const compat_uptr_t __user *compat;
+#endif
+	} ptr;
+};
+
 struct filename;
 
 #define CORENAME_MAX_SIZE 128
