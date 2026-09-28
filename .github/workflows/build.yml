@@ -38,7 +38,7 @@ jobs:
           bash KernelSU/kernel/setup.sh main
           
           echo "========================================"
-          echo "3. 注入 SUSFS 模块与内核补丁"
+          echo "2. 注入 SUSFS 模块与内核补丁"
           echo "========================================"
           mkdir -p fs include/linux
           rm -rf /tmp/susfs4ksu
