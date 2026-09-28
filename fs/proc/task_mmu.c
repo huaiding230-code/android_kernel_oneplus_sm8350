@@ -451,26 +451,7 @@ const struct file_operations proc_pid_maps_operations = {
 	.llseek		= seq_lseek,
 	.release	= proc_map_release,
 };
-
-/*
- * Proportional Set Size(PSS): my share of RSS.
- *
- * PSS of a process is the count of pages it has in memory, where each
- * page is divided by the number of processes sharing it.  So if a
- * process has 1000 pages all to itself, and 1000 shared with one other
- * process, its PSS will be 1500.
- *
- * To keep (accumulated) division errors low, we adopt a 64bit
- * fixed-point pss counter to minimize division errors. So (pss >>
- * PSS_SHIFT) would be the real byte count.
- *
- * A shift of 12 before division means (assuming 4K page size):
- * 	- 1M 3-user-pages add up to 8KB errors;
- * 	- supports mapcount up to 2^24, or 16M;
- * 	- supports PSS up to 2^52 bytes, or 4PB.
- */
 #define PSS_SHIFT 12
-
 #ifdef CONFIG_PROC_PAGE_MONITOR
 struct mem_size_stats {
 	unsigned long resident;
@@ -495,23 +476,19 @@ struct mem_size_stats {
 	u64 swap_pss;
 	bool check_shmem_swap;
 };
-
 static void smaps_page_accumulate(struct mem_size_stats *mss,
 		struct page *page, unsigned long size, unsigned long pss,
 		bool dirty, bool locked, bool private)
 {
 	mss->pss += pss;
-
 	if (PageAnon(page))
 		mss->pss_anon += pss;
 	else if (PageSwapBacked(page))
 		mss->pss_shmem += pss;
 	else
 		mss->pss_file += pss;
-
 	if (locked)
 		mss->pss_locked += pss;
-
 	if (dirty || PageDirty(page)) {
 		if (private)
 			mss->private_dirty += size;
@@ -525,16 +502,28 @@ static void smaps_page_accumulate(struct mem_size_stats *mss,
 	}
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 static void smaps_account(struct mem_size_stats *mss, struct page *page,
 		bool compound, bool young, bool dirty, bool locked)
 {
 	int i, nr = compound ? compound_nr(page) : 1;
 	unsigned long size = nr * PAGE_SIZE;
-
-	/*
-	 * First accumulate quantities that depend only on |size| and the type
-	 * of the compound page.
-	 */
 	if (PageAnon(page)) {
 		mss->anonymous += size;
 		if (!PageSwapBacked(page) && !dirty && !PageDirty(page))
@@ -545,15 +534,6 @@ static void smaps_account(struct mem_size_stats *mss, struct page *page,
 	/* Accumulate the size in pages that have been accessed. */
 	if (young || page_is_young(page) || PageReferenced(page))
 		mss->referenced += size;
-
-	/*
-	 * Then accumulate quantities that may depend on sharing, or that may
-	 * differ page-by-page.
-	 *
-	 * page_count(page) == 1 guarantees the page is mapped exactly once.
-	 * If any subpage of the compound page mapped with PTE it would elevate
-	 * page_count().
-	 */
 	if (page_count(page) == 1) {
 		smaps_page_accumulate(mss, page, size, size << PSS_SHIFT, dirty,
 			locked, true);
