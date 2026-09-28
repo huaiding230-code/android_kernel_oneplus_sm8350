@@ -398,7 +398,7 @@ struct user_arg_ptr {
 	} ptr;
 };
 
-static const char __user *get_user_arg_ptr(struct user_arg_ptr argv, int nr)
+const char __user *get_user_arg_ptr(struct user_arg_ptr argv, int nr)
 {
 	const char __user *native;
 
@@ -417,7 +417,7 @@ static const char __user *get_user_arg_ptr(struct user_arg_ptr argv, int nr)
 		return ERR_PTR(-EFAULT);
 
 	return native;
-}
+}EXPORT_SYMBOL(get_user_arg_ptr);
 
 /*
  * count() counts the number of strings in array ARGV.
