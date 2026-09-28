@@ -12,7 +12,7 @@ jobs:
         with:
           root-reserve-mb: 8192
           temp-reserve-mb: 2048
-
+          
       # 1. 拉取 LineageOS 内核源码
       - name: Checkout Kernel Source
         uses: actions/checkout@v4
@@ -27,56 +27,43 @@ jobs:
           mkdir -p toolchain
           git clone --depth=1 https://github.com/huaiding230-code/proton-clang.git toolchain/proton-clang
           echo "${GITHUB_WORKSPACE}/toolchain/proton-clang/bin" >> $GITHUB_PATH
-                
+          
       - name: Integrate SukiSU Ultra + SUSFS
         run: |
           set -euo pipefail
           cd kernel_source
-  
+          
           echo "1. 克隆你的 SukiSU-Ultra 并执行 setup.sh"
           git clone --depth=1 https://github.com/huaiding230-code/SukiSU-Ultra KernelSU
           bash KernelSU/kernel/setup.sh main
-
-          # 1. 彻底清理 5.4 内核不兼容的高级模块，并同步从 Kbuild 中抹除编译条目
-          # 1. 彻底清理 sulog 模块及其 Kbuild 编译项
+          
+          # 1. 剔除 5.4 内核不兼容的 sulog 模块
           rm -rf drivers/kernelsu/sulog || true
           sed -i '/sulog/d' drivers/kernelsu/Kbuild || true
           
+          # 2. 剔除 5.4 内核不兼容的 selinux_hide 模块
           rm -f drivers/kernelsu/feature/selinux_hide.c || true
           sed -i '/selinux_hide.o/d' drivers/kernelsu/feature/Kbuild || true
           sed -i '/selinux_hide.o/d' drivers/kernelsu/Kbuild || true
-          # 剔除 5.4 内核不兼容的 adb_root 模块
+
+          # 3. 剔除 5.4 内核不兼容的 adb_root 模块
           rm -f drivers/kernelsu/feature/adb_root.c || true
           sed -i '/adb_root.o/d' drivers/kernelsu/Kbuild || true
           sed -i '/adb_root.o/d' drivers/kernelsu/feature/Kbuild || true
-
-          # 【新增】移除与低版本内核 SELinux 不兼容的 selinux_hide.c
-          if [ -f "drivers/kernelsu/feature/selinux_hide.c" ]; then
-            rm -f drivers/kernelsu/feature/selinux_hide.c
-            echo "已移除不兼容的 selinux_hide.c"
-          fi
-          # 自动修复 SukiSU 头文件引用路径问题
-          cd drivers/kernelsu
-          if [ -d "include" ]; then
-            # 确保 supercall 和其他子目录能正确找到 include 下的头文件
-            ln -sf ../include include/core_hook.h || true
-            # 如果 allowlist.h 在其他地方，建立软链接或复制
-          fi
-          cd ../..
-
-          # 1. 清理 syscall_event_bridge.c 中对 sulog 的头文件引用和相关调用
+          
+          # 4. 清理 syscall_event_bridge.c 中对 sulog 的残留调用
           if [ -f "drivers/kernelsu/hook/syscall_event_bridge.c" ]; then
             sed -i '/#include "sulog\/event.h"/d' drivers/kernelsu/hook/syscall_event_bridge.c
             sed -i '/ksu_sulog/d' drivers/kernelsu/hook/syscall_event_bridge.c
           fi
-        
+
           echo "========================================"
           echo "3. 注入 SUSFS 模块与内核补丁"
           echo "========================================"
           mkdir -p fs include/linux
           rm -rf /tmp/susfs4ksu
           git clone --depth=1 https://gitlab.com/simonpunk/susfs4ksu.git /tmp/susfs4ksu
-  
+          
           # 1. 移动 susfs.c 和头文件
           SUSFS_C=$(find /tmp/susfs4ksu -name "susfs.c" | head -n 1)
           if [ -n "$SUSFS_C" ]; then
@@ -87,29 +74,24 @@ jobs:
           find /tmp/susfs4ksu -name "susfs*.h" -exec cp {} include/linux/ \;
           # 自动修复 susfs.h 中 struct filename 和 struct stat 的前置声明缺失问题
           sed -i '/int susfs_add_sus_path/i struct filename;\nstruct stat;' include/linux/susfs.h
-  
+
           # 2. 自动匹配并应用 5.4 内核的 SUSFS 补丁 (注入 path_umount 及 VFS 钩子)
           SUSFS_PATCH=$(find /tmp/susfs4ksu -type f -name "*5.4*.patch" | head -n 1)
           if [ -n "$SUSFS_PATCH" ]; then
             echo "[+] 正在应用 5.4 SUSFS 内核补丁: $SUSFS_PATCH"
             patch -p1 < "$SUSFS_PATCH" || true
           fi
-  
+
           # 3. 注入 Kconfig 与 Makefile
           if ! grep -q "susfs.o" fs/Makefile; then
             echo "obj-\$(CONFIG_KSU_SUSFS) += susfs.o" >> fs/Makefile
           fi
-  
+
           if ! grep -q "CONFIG_KSU_SUSFS" fs/Kconfig; then
             echo -e '\nconfig KSU_SUSFS\n\tbool "SUSFS support"\n\tdefault y\n' >> fs/Kconfig
           fi  
-  
+
           echo "SukiSU-Ultra 和 SUSFS 整合完毕。"
-          # 修复头文件找不到的软链接
-          cd drivers/kernelsu
-          mkdir -p supercall/include
-          ln -sf ../../include ./include_dir || true
-          cd ../..
           
       - name: Build Integrated Kernel
         run: |
@@ -124,21 +106,21 @@ jobs:
           OUT_DIR="${GITHUB_WORKSPACE}/out"
           rm -rf "${OUT_DIR}"
           mkdir -p "${OUT_DIR}"
-  
+
           echo "========================================"
           echo "1. 解锁 Kconfig 隐式配置限制 (防止网络模块报错)"
           echo "========================================"
           if [ -f "net/core/Kconfig" ]; then
             sed -i 's/^config RPS$/config RPS\n\tprompt "Receive Packet Steering"/g' net/core/Kconfig
           fi
-  
+
           echo "========================================"
           echo "2. 配置 LineageOS Target Defconfig"
           echo "========================================"
           # 直接指定你一加9 LineageOS 的配置文件
           DEFCONFIG_TARGET="vendor/lahaina-qgki_defconfig"
           echo "使用配置文件: ${DEFCONFIG_TARGET}"
-  
+
           # 定义编译参数
           MAKE_ARGS=(
           ARCH=arm64
@@ -151,10 +133,10 @@ jobs:
           CROSS_COMPILE_ARM32=arm-linux-gnueabi-
           O="${OUT_DIR}"
           )
-  
+
           # 加载基础配置
           make "${MAKE_ARGS[@]}" "${DEFCONFIG_TARGET}"
-  
+
           echo "========================================"
           echo "3. 使用 scripts/config 强力注入 SukiSU/SUSFS 配置"
           echo "========================================"
@@ -200,7 +182,7 @@ jobs:
           echo "4. 核心配置状态安全校验"
           echo "========================================"
           grep -q "CONFIG_KSU_SUSFS=y" "${OUT_DIR}/.config" || { echo "ERROR: CONFIG_KSU_SUSFS 未成功启用！"; exit 1; }
-  
+
           echo "========================================"
           echo "5. 开始多核极速编译内核"
           echo "========================================"
@@ -240,6 +222,7 @@ jobs:
             echo "[-] 致命错误：未找到支持的内核镜像文件！"
             exit 1
           fi
+          
       # 6. 上传 Artifact (直接打包 AnyKernel3/* 目录)
       - name: Upload Kernel Zip Artifact
         uses: actions/upload-artifact@v4
