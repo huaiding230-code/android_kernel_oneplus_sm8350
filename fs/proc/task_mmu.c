@@ -22,6 +22,7 @@
 #include <linux/pkeys.h>
 #include <linux/mm_inline.h>
 #include <linux/ctype.h>
+#include <linux/susfs.h>
 
 #include <asm/elf.h>
 #include <asm/tlb.h>
@@ -370,6 +371,25 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
 
 	start = vma->vm_start;
 	end = VMA_PAD_START(vma);
+	
+	#ifdef CONFIG_KSU_SUSFS_SUS_MAPS
+	{
+		char *out_name;
+		int ret = 0;
+		out_name = kmalloc(SUSFS_MAX_LEN_PATHNAME, GFP_KERNEL);
+		if (out_name) {
+			ret = susfs_sus_maps(ino, end - start, &ino, &dev, &flags, &pgoff, vma, out_name);
+			if (ret == 2) {
+				seq_pad(m, ' ');
+				seq_puts(m, out_name);
+				seq_putc(m, '\n');
+				kfree(out_name);
+				return;
+			}
+			kfree(out_name);
+		}
+	}
+	#endif
 
 	show_vma_header_prefix(m, start, end, flags, pgoff, dev, ino);
 	/*
