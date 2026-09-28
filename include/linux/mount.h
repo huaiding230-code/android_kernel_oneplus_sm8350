@@ -79,6 +79,7 @@ struct vfsmount {
 	ANDROID_KABI_RESERVE(3);
 	ANDROID_KABI_RESERVE(4);
 	void *data;
+	int susfs_mnt_id_backup;    /* <-- 追加这一行，提供给 SUSFS 使用 */
 } __randomize_layout;
 
 struct file; /* forward dec */
