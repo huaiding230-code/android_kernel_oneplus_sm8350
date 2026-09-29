@@ -35,10 +35,10 @@ jobs:
           
           echo "1. 克隆你的 SukiSU-Ultra 并执行 setup.sh"
           git clone --depth=1 https://github.com/huaiding230-code/SukiSU-Ultra KernelSU
-          bash KernelSU/kernel/setup.sh main
           
-          # 【新增位置 1】：强行让 KernelSU 绝对参与编译，防止 obj-$(CONFIG_KSU) 被 Kbuild 算成空
           sed -i 's/obj-\$(CONFIG_KSU)/obj-y/g' KernelSU/kernel/Kbuild
+          bash KernelSU/kernel/setup.sh main
+          sed -i 's/obj-\$(CONFIG_KSU)/obj-y/g' drivers/kernelsu/Kbuild 2>/dev/null || true
           
           echo "========================================"
           echo "2. 注入 SUSFS 模块与内核补丁"
@@ -64,24 +64,22 @@ jobs:
           echo "[+] 正在应用来自 susfs4ksu 仓库的 5.4 内核 SUSFS 补丁..."
           patch -p1 < /tmp/susfs4ksu/kernel_patches/50_add_susfs_in_kernel-5.4.patch || true
 
-          # 3. 注入 Kconfig 与 Makefile
+          # 【关键修复】：必须使用 append (>>) 追加到 fs/Makefile 末尾，避免被 obj-y := 覆盖！
           if ! grep -q "susfs.o" fs/Makefile; then
-              # 直接暴力让内核必定编译 susfs.o，无视 Kconfig 的屏蔽
-              sed -i '1i\obj-y += susfs.o' fs/Makefile
+            echo "obj-y += susfs.o" >> fs/Makefile
           fi
-          
+      
           if ! grep -q "CONFIG_KSU_SUSFS" fs/Kconfig; then
-              # 将 SUSFS 配置安全地插入到 endmenu 的前面，防止被 olddefconfig 剔除
-              sed -i 's/^endmenu/config KSU_SUSFS\n\tbool "SUSFS support"\n\tdefault y\n\nendmenu/g' fs/Kconfig
+            sed -i 's/^endmenu/config KSU_SUSFS\n\tbool "SUSFS support"\n\tdefault y\n\nendmenu/g' fs/Kconfig
           fi
-          # 在 "echo SukiSU-Ultra 和 SUSFS 整合完毕。" 上方添加：
+      
+          # 驱动层强行引入
           sed -i 's/obj-\$(CONFIG_KSU)/obj-y/g' drivers/Makefile
           if ! grep -q "obj-y += kernelsu/" drivers/Makefile; then
-              echo "obj-y += kernelsu/" >> drivers/Makefile
+            echo "obj-y += kernelsu/" >> drivers/Makefile
           fi
-          
           echo "SukiSU-Ultra 和 SUSFS 整合完毕。"
-          
+                
       - name: Build Integrated Kernel
         run: |
           set -euo pipefail
