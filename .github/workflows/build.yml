@@ -37,6 +37,9 @@ jobs:
           git clone --depth=1 https://github.com/huaiding230-code/SukiSU-Ultra KernelSU
           bash KernelSU/kernel/setup.sh main
           
+          # 【新增位置 1】：强行让 KernelSU 绝对参与编译，防止 obj-$(CONFIG_KSU) 被 Kbuild 算成空
+          sed -i 's/obj-\$(CONFIG_KSU)/obj-y/g' KernelSU/kernel/Kbuild
+          
           echo "========================================"
           echo "2. 注入 SUSFS 模块与内核补丁"
           echo "========================================"
@@ -48,6 +51,8 @@ jobs:
           SUSFS_C=$(find /tmp/susfs4ksu -name "susfs.c" | head -n 1)
           if [ -n "$SUSFS_C" ]; then
             cp "$SUSFS_C" fs/
+          # 【新增位置 2】：强行在 susfs.c 源码顶部注入宏，防止被 #ifdef 编成空文件
+            sed -i '1i\#define CONFIG_KSU_SUSFS 1' fs/susfs.c
           else
             echo "[-] 错误: 未找到 susfs.c" && exit 1
           fi
