@@ -32,47 +32,60 @@ jobs:
         run: |
           set -euo pipefail
           cd kernel_source
-          
-          echo "1. 克隆 SukiSU-Ultra 并集成"
+
+          echo "========================================"
+          echo "1. 全量克隆与完整覆盖拷贝 SukiSU-Ultra"
+          echo "========================================"
           git clone --depth=1 https://github.com/huaiding230-code/SukiSU-Ultra KernelSU
           bash KernelSU/kernel/setup.sh main
 
-          # 【精准修复 1】：将 setup.sh 生成的相对软链接转为实体目录，防止 O=out 编译找不到 C 源码
+          # 【完整全量拷贝】：清空目标文件夹，将 KernelSU 的所有源码、uapi、头文件整体一键拷入
           rm -rf drivers/kernelsu
-          cp -r KernelSU/kernel drivers/kernelsu
-          [ -d KernelSU/uapi ] && cp -r KernelSU/uapi drivers/kernelsu/
+          mkdir -p drivers/kernelsu
+          
+          # 1) 拷贝 kernel 目录下的所有内容（含所有子文件夹及代码）
+          cp -a KernelSU/kernel/. drivers/kernelsu/
+          # 2) 如果根目录下存在 uapi 目录，直接完整拷过去
+          if [ -d KernelSU/uapi ]; then
+            cp -a KernelSU/uapi drivers/kernelsu/
+          fi
 
-          # 强制 drivers/Makefile 包含 kernelsu
+          echo "========================================"
+          echo "2. 挂载到内核编译主干 (Makefile / Kbuild)"
+          echo "========================================"
+          # 告诉内核编译系统去编译 drivers/kernelsu 目录
           sed -i '/kernelsu/d' drivers/Makefile
           echo "obj-y += kernelsu/" >> drivers/Makefile
 
-          # 【关键修复 1】：强制修改 Kbuild，防止 CONFIG_KSU 被抹除导致零编译
+          # 强制开启编译开关（防止配置被抹除）
           sed -i 's/obj-$(CONFIG_KSU)/obj-y/g' drivers/kernelsu/Kbuild || true
           sed -i 's/obj-$(CONFIG_KSU)/obj-y/g' drivers/kernelsu/Makefile || true
 
-          # 【关键修复 2】：直接在 Kbuild 开头注入 SUSFS 的 Make 变量，确保所有子模块编译
+          # 全局添加头文件搜索目录（让 Clang 自动在所有子目录下找 .h）与数据类型定义
+          echo 'ccflags-y += -I$(srctree)/drivers/kernelsu -I$(srctree)/drivers/kernelsu/uapi -I$(srctree)/drivers/kernelsu/feature -include linux/types.h' >> drivers/kernelsu/Kbuild
+
+          # 注入 SUSFS 和 SukiSU 的编译宏
           sed -i '1i CONFIG_KSU=y\nCONFIG_KSU_SUSFS = y\nCONFIG_KSU_SUSFS_SUS_PATH = y\nCONFIG_KSU_SUSFS_SUS_MOUNT = y\nCONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT = y\nCONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT = y\nCONFIG_KSU_SUSFS_SUS_KSTAT = y\nCONFIG_KSU_SUSFS_SPOOF_UNAME = y\nCONFIG_KSU_SUSFS_ENABLE_LOG = y\nCONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS = y\nCONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG = y\nCONFIG_KSU_SUSFS_OPEN_REDIRECT = y\nCONFIG_KSU_SPOOF_CPU = y\nCONFIG_KSU_SELINUX_HIDE = y' drivers/kernelsu/Kbuild
 
-          # 确保 drivers/Kconfig 引入了 KSU
           if ! grep -q "drivers/kernelsu/Kconfig" drivers/Kconfig; then
             echo 'source "drivers/kernelsu/Kconfig"' >> drivers/Kconfig
           fi
 
           echo "========================================"
-          echo "2. 注入 SUSFS 模块与内核补丁"
+          echo "3. 注入 SUSFS 模块与内核补丁"
           echo "========================================"
           mkdir -p fs include/linux
           rm -rf /tmp/susfs4ksu
           git clone --depth=1 https://github.com/huaiding230-code/susfs4ksu.git /tmp/susfs4ksu
-          
+
           SUSFS_C=$(find /tmp/susfs4ksu -name "susfs.c" | head -n 1)
           cp "$SUSFS_C" fs/
           find /tmp/susfs4ksu -name "susfs*.h" -exec cp {} include/linux/ \;
-          
+
           sed -i '/int susfs_add_sus_path/i struct filename;\nstruct stat;' include/linux/susfs.h
           patch -p1 < /tmp/susfs4ksu/kernel_patches/50_add_susfs_in_kernel-5.4.patch || true
 
-          # 【精准修复 2】：补全 susfs.o 编译所需的全部预处理宏，防止 susfs.c 里的函数被 #ifdef 删空
+          # 补全 susfs.o 编译所需的预处理宏
           sed -i '/susfs.o/d' fs/Makefile
           echo "CFLAGS_susfs.o += -DCONFIG_KSU_SUSFS=1 -DCONFIG_KSU_SUSFS_SUS_PATH=1 -DCONFIG_KSU_SUSFS_SUS_MOUNT=1 -DCONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=1 -DCONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=1 -DCONFIG_KSU_SUSFS_SUS_KSTAT=1 -DCONFIG_KSU_SUSFS_SPOOF_UNAME=1 -DCONFIG_KSU_SUSFS_ENABLE_LOG=1 -DCONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=1 -DCONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=1 -DCONFIG_KSU_SUSFS_OPEN_REDIRECT=1" >> fs/Makefile
           echo "obj-y += susfs.o" >> fs/Makefile
@@ -80,7 +93,7 @@ jobs:
           if ! grep -q "CONFIG_KSU_SUSFS" fs/Kconfig; then
             echo -e '\nconfig KSU_SUSFS\n\tbool "SUSFS support"\n\tdefault y\n' >> fs/Kconfig
           fi
-          echo "SukiSU-Ultra 和 SUSFS 整合完毕。"
+          echo "SukiSU-Ultra 和 SUSFS 全量整合完成。"
           
       - name: Build Integrated Kernel
         run: |
