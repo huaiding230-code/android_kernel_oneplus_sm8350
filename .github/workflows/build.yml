@@ -40,6 +40,7 @@ jobs:
           # 【精准修复 1】：将 setup.sh 生成的相对软链接转为实体目录，防止 O=out 编译找不到 C 源码
           rm -rf drivers/kernelsu
           cp -r KernelSU/kernel drivers/kernelsu
+          [ -d KernelSU/uapi ] && cp -r KernelSU/uapi drivers/kernelsu/
 
           # 强制 drivers/Makefile 包含 kernelsu
           sed -i '/kernelsu/d' drivers/Makefile
