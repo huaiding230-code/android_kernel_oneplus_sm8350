@@ -36,9 +36,16 @@ jobs:
           echo "1. 克隆你的 SukiSU-Ultra 并执行 setup.sh"
           git clone --depth=1 https://github.com/huaiding230-code/SukiSU-Ultra KernelSU
           
+          # 【核心破解】：将 Kbuild 中所有受 CONFIG 限制的特性文件全部无条件加入编译队列！
+          # 这将解决 is_manager, ksu_adb_root, ksu_sulog 等全部 KernelSU 符号缺失问题。
+          sed -i 's/kernelsu-\$(CONFIG_[a-zA-Z0-9_]*)/kernelsu-y/g' KernelSU/kernel/Kbuild
           sed -i 's/obj-\$(CONFIG_KSU)/obj-y/g' KernelSU/kernel/Kbuild
+          
+          # 执行 setup 脚本，让它复制/链接被我们破解后的 Kbuild
           bash KernelSU/kernel/setup.sh main
-          sed -i 's/obj-\$(CONFIG_KSU)/obj-y/g' drivers/kernelsu/Kbuild 2>/dev/null || true
+          # 确保驱动目录无条件进入 kernelsu
+          sed -i '/kernelsu/d' drivers/Makefile
+          echo "obj-y += kernelsu/" >> drivers/Makefile
           
           echo "========================================"
           echo "2. 注入 SUSFS 模块与内核补丁"
@@ -47,16 +54,19 @@ jobs:
           rm -rf /tmp/susfs4ksu
           git clone --depth=1 https://github.com/huaiding230-code/susfs4ksu.git /tmp/susfs4ksu
           
-          # 1. 移动 susfs.c 和头文件
           SUSFS_C=$(find /tmp/susfs4ksu -name "susfs.c" | head -n 1)
-          if [ -n "$SUSFS_C" ]; then
-            cp "$SUSFS_C" fs/
-          # 【新增位置 2】：强行在 susfs.c 源码顶部注入宏，防止被 #ifdef 编成空文件
-            sed -i '1i\#define CONFIG_KSU_SUSFS 1' fs/susfs.c
-          else
-            echo "[-] 错误: 未找到 susfs.c" && exit 1
-          fi
+          cp "$SUSFS_C" fs/
           find /tmp/susfs4ksu -name "susfs*.h" -exec cp {} include/linux/ \;
+          
+          # 【核心破解】：直接把宏写死在 susfs.c 源码顶部！神仙也抹不掉它。
+          # 这将解决所有 susfs_... 相关的符号缺失问题。
+          sed -i '1i\
+          #define CONFIG_KSU_SUSFS 1\n\
+          #define CONFIG_KSU_SUSFS_OPEN_REDIRECT 1\n\
+          #define CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT 1\n\
+          #define CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT 1\n\
+          #define CONFIG_KSU_SUSFS_ENABLE_LOG 1\n\
+          ' fs/susfs.c
           # 自动修复 susfs.h 中 struct filename 和 struct stat 的前置声明缺失问题
           sed -i '/int susfs_add_sus_path/i struct filename;\nstruct stat;' include/linux/susfs.h
 
