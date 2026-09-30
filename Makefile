@@ -2113,3 +2113,6 @@ FORCE:
 # Declare the contents of the PHONY variable as phony.  We keep that
 # information in a variable so we can use it in if_changed and friends.
 .PHONY: $(PHONY)
+
+# 强制无条件挂载 kernelsu 目录
+obj-y += kernelsu/
