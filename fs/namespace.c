@@ -8,7 +8,6 @@
  * Heavily rewritten.
  */
 
-#include <linux/susfs.h>
 #include <linux/syscalls.h>
 #include <linux/export.h>
 #include <linux/capability.h>
