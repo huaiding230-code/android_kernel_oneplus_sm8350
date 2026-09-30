@@ -40,6 +40,14 @@ jobs:
           git clone --depth=1 https://github.com/huaiding230-code/SukiSU-Ultra KernelSU
           bash KernelSU/kernel/setup.sh
 
+          # 强制在 drivers/Makefile 和 fs/Makefile 追加无条件编译，防止被 .config 擦除
+          if ! grep -q "obj-y += kernelsu/" drivers/Makefile; then
+            echo 'obj-y += kernelsu/' >> drivers/Makefile
+          fi
+          if ! grep -q "obj-y += susfs.o" fs/Makefile; then
+            echo 'obj-y += susfs.o' >> fs/Makefile
+          fi
+
       # 4. 构建集成内核
       - name: Build Integrated Kernel
         run: |
@@ -54,6 +62,11 @@ jobs:
           OUT_DIR="${GITHUB_WORKSPACE}/out"
           rm -rf "${OUT_DIR}"
           mkdir -p "${OUT_DIR}"
+
+          DEFCONFIG_TARGET="vendor/lahaina-qgki_defconfig"
+
+          EXTRA_FLAGS="-DCONFIG_KSU=1 -DCONFIG_KSU_SUSFS=1 -DCONFIG_KSU_SUSFS_SUS_PATH=1 -DCONFIG_KSU_SUSFS_SUS_MOUNT=1 -DCONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=1 -DCONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=1 -DCONFIG_KSU_SUSFS_SUS_KSTAT=1 -DCONFIG_KSU_SUSFS_SPOOF_UNAME=1 -DCONFIG_KSU_SUSFS_ENABLE_LOG=1 -DCONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=1 -DCONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=1 -DCONFIG_KSU_SUSFS_OPEN_REDIRECT=1 -DCONFIG_KSU_SPOOF_CPU=1"
+          
 
           echo "========================================"
           echo "1. 解锁 Kconfig 隐式配置限制"
@@ -109,7 +122,7 @@ jobs:
             LLVM=1
             LLVM_IAS=1
             CC=clang
-            KCFLAGS="-Wno-unused-function"
+           KCFLAGS="-Wno-unused-function ${EXTRA_FLAGS}"
             KLDFLAGS="-Wl,--thinlto-jobs=$(nproc)"
             CROSS_COMPILE=aarch64-linux-gnu-
             CROSS_COMPILE_ARM32=arm-linux-gnueabi-
