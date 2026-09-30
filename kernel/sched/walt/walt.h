@@ -209,7 +209,7 @@ extern int core_ctl_init(void);
 #ifdef CONFIG_CPU_FREQ
 extern int cpu_boost_init(void);
 #else
-static inline int cpu_boost_init(void) { }
+static inline int cpu_boost_init(void) { return -ENODEV; }
 #endif
 
 #else /* CONFIG_SCHED_WALT */
@@ -235,7 +235,7 @@ static inline void init_new_task_load(struct task_struct *p)
 
 static inline void mark_task_starting(struct task_struct *p) { }
 static inline void set_window_start(struct rq *rq) { }
-static inline int sched_cpu_high_irqload(int cpu) { return 0; }
+static inline int sched_cpu_high_irqload(int cpu) { return -ENODEV; }
 
 static inline void sched_account_irqstart(int cpu, struct task_struct *curr,
 					  u64 wallclock)
