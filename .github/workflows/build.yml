@@ -28,38 +28,33 @@ jobs:
           git clone --depth=1 https://github.com/huaiding230-code/proton-clang.git toolchain/proton-clang
           echo "${GITHUB_WORKSPACE}/toolchain/proton-clang/bin" >> $GITHUB_PATH
 
-      # 3. 拉取 SukiSU-Ultra 并运行 setup.sh
+      # 3. 终极暴力集成 SukiSU-Ultra 与 SUSFS
       - name: Integrate SukiSU Ultra + SUSFS
         run: |
           set -euo pipefail
           cd kernel_source
 
           echo "========================================"
-          echo "拉取 SukiSU Ultra 仓库并自动运行集成脚本"
+          echo "拉取仓库并运行集成脚本"
           echo "========================================"
           git clone --depth=1 https://github.com/huaiding230-code/SukiSU-Ultra KernelSU
           bash KernelSU/kernel/setup.sh
 
-          # 1. 修复递归引用 bug：清除 drivers/kernelsu/Kconfig 内部误追加的自我引用
-          sed -i '/source "drivers\/kernelsu\/Kconfig"/d' drivers/kernelsu/Kconfig || true
-          sed -i '/source "drivers\/kernelsu\/Kconfig"/d' KernelSU/kernel/Kconfig || true
-
-          # 2. 确保 drivers/Kconfig 里有且仅有一条对 KSU Kconfig 的引用
-          sed -i '/drivers\/kernelsu\/Kconfig/d' drivers/Kconfig || true
-          echo 'source "drivers/kernelsu/Kconfig"' >> drivers/Kconfig
-
-          # 1. 强行将 kernelsu 的 Makefile 中的条件编译改为 obj-y
+          echo "========================================"
+          echo "BRUTE FORCE 1: 物理抹除 Makefile 中的条件编译"
+          echo "========================================"
+          # 强行把原本需要 CONFIG 才能激活的编译，变成无条件的 obj-y
           sed -i 's/obj-$(CONFIG_KSU)/obj-y/g' drivers/kernelsu/Makefile || true
           sed -i 's/obj-$(CONFIG_KSU)/obj-y/g' KernelSU/kernel/Makefile || true
           sed -i 's/obj-$(CONFIG_KSU_SUSFS)/obj-y/g' fs/Makefile || true
 
-          # 强制在 drivers/Makefile 和 fs/Makefile 追加无条件编译，防止被 .config 擦除
-          if ! grep -q "obj-y += kernelsu/" drivers/Makefile; then
-            echo 'obj-y += kernelsu/' >> drivers/Makefile
-          fi
-          if ! grep -q "obj-y += susfs.o" fs/Makefile; then
-            echo 'obj-y += susfs.o' >> fs/Makefile
-          fi
+          # 确保驱动树和文件系统树绝对包含我们的模块 (插在文件末尾)
+          echo 'obj-y += kernelsu/' >> drivers/Makefile
+          echo 'obj-y += susfs.o' >> fs/Makefile
+
+          # 清理上一版残留的自身引用死循环 Bug
+          sed -i '/source "drivers\/kernelsu\/Kconfig"/d' drivers/kernelsu/Kconfig || true
+          sed -i '/source "drivers\/kernelsu\/Kconfig"/d' KernelSU/kernel/Kconfig || true
 
       # 4. 构建集成内核
       - name: Build Integrated Kernel
@@ -67,67 +62,33 @@ jobs:
           set -euo pipefail
           cd kernel_source
 
-          # 配置 Clang 工具链路径
           CLANG_DIR="${GITHUB_WORKSPACE}/toolchain/proton-clang"
           export PATH="${CLANG_DIR}/bin:${PATH}"
 
-          # 准备干净的输出目录
           OUT_DIR="${GITHUB_WORKSPACE}/out"
           rm -rf "${OUT_DIR}"
           mkdir -p "${OUT_DIR}"
 
-          DEFCONFIG_TARGET="vendor/lahaina-qgki_defconfig"
-          DEFCONFIG_PATH="arch/arm64/configs/${DEFCONFIG_TARGET}"
-
-          # 1. 确保在 MAKE_ARGS 使用前先定义 EXTRA_FLAGS
+          # 把所有必须的宏强行塞进 C 编译器（解决源码层面的宏隔离）
           EXTRA_FLAGS="-DCONFIG_KSU=1 -DCONFIG_KSU_SUSFS=1 -DCONFIG_KSU_SUSFS_SUS_PATH=1 -DCONFIG_KSU_SUSFS_SUS_MOUNT=1 -DCONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=1 -DCONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=1 -DCONFIG_KSU_SUSFS_SUS_KSTAT=1 -DCONFIG_KSU_SUSFS_SPOOF_UNAME=1 -DCONFIG_KSU_SUSFS_ENABLE_LOG=1 -DCONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=1 -DCONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=1 -DCONFIG_KSU_SUSFS_OPEN_REDIRECT=1 -DCONFIG_KSU_SPOOF_CPU=1"
-          
-          echo "========================================"
-          echo "1. 解锁 Kconfig 隐式配置限制"
-          echo "========================================"
-          if [ -f "net/core/Kconfig" ]; then
-            sed -i 's/^config RPS$/config RPS\n\tprompt "Receive Packet Steering"/g' net/core/Kconfig
-          fi
 
-          echo "========================================"
-          echo "2. 确保 drivers/Kconfig 正确引用 KSU"
-          echo "========================================"
-          if ! grep -q "drivers/kernelsu/Kconfig" drivers/Kconfig; then
-            echo 'source "drivers/kernelsu/Kconfig"' >> drivers/Kconfig
-          fi
-
-          echo "========================================"
-          echo "3. 向 target defconfig 注入所有功能与优化配置"
-          echo "========================================"
-          cat << 'EOF' >> "${DEFCONFIG_PATH}"
-
-          # SukiSU Ultra & SUSFS 配置
-          CONFIG_KSU=y
-          CONFIG_KSU_SUSFS=y
-          CONFIG_KSU_SUSFS_SUS_PATH=y
-          CONFIG_KSU_SUSFS_SUS_MOUNT=y
-          CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=y
-          CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y
-          CONFIG_KSU_SUSFS_SUS_KSTAT=y
-          CONFIG_KSU_SUSFS_SPOOF_UNAME=y
-          CONFIG_KSU_SUSFS_ENABLE_LOG=y
-          CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y
-          CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y
-          CONFIG_KSU_SUSFS_OPEN_REDIRECT=y
-          CONFIG_KSU_SPOOF_CPU=y
-
-          # 底层网络与安全依赖
-          CONFIG_NET=y
-          CONFIG_INET=y
-          CONFIG_KEYS=y
-          CONFIG_PERF_EVENTS=y
-
-          # 禁用调试标志以提升编译速度与缩减镜像体积
-          CONFIG_DEBUG_INFO=n
-          CONFIG_DEBUG_INFO_DWARF4=n
-          CONFIG_DEBUG_INFO_NONE=y
-          CONFIG_DEBUG_INFO_BTF=n
-          EOF
+          # 核心大招：把所有的开关直接做成 make 的命令行参数
+          # 在 GNU Make 中，命令行参数拥有最高特权，无视一切 Makefile 里的擦除行为！
+          MAKE_FORCE_Y=(
+            "CONFIG_KSU=y"
+            "CONFIG_KSU_SUSFS=y"
+            "CONFIG_KSU_SUSFS_SUS_PATH=y"
+            "CONFIG_KSU_SUSFS_SUS_MOUNT=y"
+            "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=y"
+            "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y"
+            "CONFIG_KSU_SUSFS_SUS_KSTAT=y"
+            "CONFIG_KSU_SUSFS_SPOOF_UNAME=y"
+            "CONFIG_KSU_SUSFS_ENABLE_LOG=y"
+            "CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y"
+            "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y"
+            "CONFIG_KSU_SUSFS_OPEN_REDIRECT=y"
+            "CONFIG_KSU_SPOOF_CPU=y"
+          )
 
           MAKE_ARGS=(
             ARCH=arm64
@@ -142,22 +103,15 @@ jobs:
           )
 
           echo "========================================"
-          echo "4. 生成并校验 .config"
+          echo "1. 生成基础 defconfig"
           echo "========================================"
           make "${MAKE_ARGS[@]}" vendor/lahaina-qgki_defconfig
 
-          # 校验 CONFIG_KSU 是否在 .config 中成功保留
-          if ! grep -q "CONFIG_KSU=y" "${OUT_DIR}/.config"; then
-            echo "[-] 错误：CONFIG_KSU 未能在 .config 中生效！"
-            exit 1
-          fi
-          echo "[+] CONFIG_KSU 已成功写入 .config！"
-
           echo "========================================"
-          echo "5. 开始多核极速编译内核"
+          echo "2. 终极暴力编译开始"
           echo "========================================"
-          make "${MAKE_ARGS[@]}" -j"$(nproc)"
-
+          # 关键点：将 MAKE_FORCE_Y 数组直接喂给 make
+          make "${MAKE_ARGS[@]}" "${MAKE_FORCE_Y[@]}" -j"$(nproc)"
       # 5. 打包 AnyKernel3
       - name: Pack with AnyKernel3
         shell: bash
