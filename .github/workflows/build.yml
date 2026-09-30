@@ -61,9 +61,6 @@ jobs:
           rm -rf /tmp/susfs4ksu
           git clone --depth=1 https://github.com/huaiding230-code/susfs4ksu.git /tmp/susfs4ksu
 
-          # 清理 dts 设备树冲突
-          git checkout -- arch/arm64/boot/dts/ || true
-
           # 复制 susfs 文件（直接对应你 setup.sh 的逻辑）
           SUSFS_C=$(find /tmp/susfs4ksu -name "susfs.c" | head -n 1)
           cp "$SUSFS_C" fs/
@@ -89,7 +86,9 @@ jobs:
               echo "[+] 应用内核 SUSFS 挂钩补丁..."
               patch -p1 < "$PATCH_FILE" || echo "[!] 警告: Patch 应用有冲突，请检查内核源码。"
           fi
-          
+           # 清理 dts 设备树冲突
+          git checkout -- arch/arm64/boot/dts/ || true
+
       # 4. 构建集成内核
       - name: Build Integrated Kernel
         run: |
