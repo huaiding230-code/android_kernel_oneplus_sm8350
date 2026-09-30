@@ -8,6 +8,7 @@
  * Heavily rewritten.
  */
 
+#include <linux/susfs.h>
 #include <linux/syscalls.h>
 #include <linux/export.h>
 #include <linux/capability.h>
@@ -30,7 +31,6 @@
 #include <uapi/linux/mount.h>
 #include <linux/fs_context.h>
 #include <linux/shmem_fs.h>
-#include <linux/susfs.h>
 
 #include "pnode.h"
 #include "internal.h"
