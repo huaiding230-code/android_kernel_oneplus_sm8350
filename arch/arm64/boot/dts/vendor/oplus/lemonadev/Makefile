@@ -9,6 +9,7 @@ else
 dtb-$(CONFIG_ARCH_LAHAINA) += \
             lemonadep-19815-overlay.dtb \
             lemonadep-19815-overlay-t0.dtb
+
 endif
 
 always          := $(dtb-y)
