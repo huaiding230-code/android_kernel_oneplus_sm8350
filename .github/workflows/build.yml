@@ -34,25 +34,25 @@ jobs:
           cd kernel_source
 
           echo "========================================"
-          echo "1. 克隆 SukiSU Ultra 与 susfs4ksu"
+          echo "1. 直接克隆 SukiSU Ultra 到内核源码树内"
           echo "========================================"
-          rm -rf /tmp/SukiSU-Ultra /tmp/susfs4ksu
-          git clone --depth=1 https://github.com/huaiding230-code/SukiSU-Ultra.git /tmp/SukiSU-Ultra
-          git clone --depth=1 https://github.com/huaiding230-code/susfs4ksu.git /tmp/susfs4ksu
-
-          echo "========================================"
-          echo "2. 清理 dts 设备树冲突节点"
-          echo "========================================"
-          git checkout -- arch/arm64/boot/dts/ || true
+          rm -rf KernelSU drivers/kernelsu
+          git clone --depth=1 https://github.com/huaiding230-code/SukiSU-Ultra.git KernelSU
           
           echo "========================================"
-          echo "3. 执行 SukiSU Ultra 的 setup.sh"
+          echo "2. 在原地执行 SukiSU 的 setup.sh"
           echo "========================================"
-          bash /tmp/SukiSU-Ultra/kernel/setup.sh
+          bash KernelSU/kernel/setup.sh
 
           echo "========================================"
-          echo "4. 完整注入 SUSFS 源码与官方补丁"
+          echo "3. 克隆 susfs4ksu 并注入模块与底层补丁"
           echo "========================================"
+          rm -rf /tmp/susfs4ksu
+          git clone --depth=1 https://github.com/huaiding230-code/susfs4ksu.git /tmp/susfs4ksu
+
+          # 清理 dts 设备树冲突
+          git checkout -- arch/arm64/boot/dts/ || true
+
           # 复制 susfs 文件
           cp -av /tmp/susfs4ksu/kernel_patches/fs/* fs/
           cp -av /tmp/susfs4ksu/kernel_patches/include/linux/* include/linux/
@@ -60,7 +60,7 @@ jobs:
           # 关键：应用 SUSFS 的 VFS 内核底层补丁
           if [ -f "/tmp/susfs4ksu/kernel_patches/50_add_susfs_in_kernel.patch" ]; then
             echo "[+] 正在应用 50_add_susfs_in_kernel.patch..."
-            patch -p1 < /tmp/susfs4ksu/kernel_patches/50_add_susfs_in_kernel.patch || echo "[-] 部分补丁可能已存在或需手动处理，继续..."
+            patch -p1 < /tmp/susfs4ksu/kernel_patches/50_add_susfs_in_kernel.patch || echo "[-] 部分补丁可能已应用，继续..."
           fi
 
           # 确保 fs/Makefile 和 fs/Kconfig 包含 susfs
@@ -70,7 +70,7 @@ jobs:
           if ! grep -q "CONFIG_KSU_SUSFS" fs/Kconfig; then
             echo -e '\nconfig KSU_SUSFS\n\tbool "SUSFS support"\n\tdefault y\n' >> fs/Kconfig
           fi
-
+          
       # 4. 构建集成内核
       - name: Build Integrated Kernel
         run: |
