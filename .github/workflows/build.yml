@@ -28,6 +28,36 @@ jobs:
           git clone --depth=1 https://github.com/huaiding230-code/proton-clang.git toolchain/proton-clang
           echo "${GITHUB_WORKSPACE}/toolchain/proton-clang/bin" >> $GITHUB_PATH
 
+      name: Phase 2 - Integrated SukiSU Ultra + SUSFS Kernel Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Maximize Build Space
+        uses: easimon/maximize-build-space@master
+        with:
+          root-reserve-mb: 8192
+          temp-reserve-mb: 2048
+
+      # 1. 拉取 LineageOS 内核源码
+      - name: Checkout Kernel Source
+        uses: actions/checkout@v4
+        with:
+          ref: lineage-23.2
+          path: kernel_source
+          fetch-depth: 1
+
+      # 2. 拉取 Proton-Clang 工具链
+      - name: Setup Proton-Clang Toolchain
+        run: |
+          mkdir -p toolchain
+          git clone --depth=1 https://github.com/huaiding230-code/proton-clang.git toolchain/proton-clang
+          echo "${GITHUB_WORKSPACE}/toolchain/proton-clang/bin" >> $GITHUB_PATH
+
       # 3. 终极暴力集成 SukiSU-Ultra 与 SUSFS
       - name: Integrate SukiSU Ultra + SUSFS
         run: |
@@ -57,6 +87,120 @@ jobs:
           sed -i '/source "drivers\/kernelsu\/Kconfig"/d' drivers/kernelsu/Kconfig || true
           sed -i '/source "drivers\/kernelsu\/Kconfig"/d' KernelSU/kernel/Kconfig || true
 
+      # 4. 构建集成内核
+      - name: Build Integrated Kernel
+        run: |
+          set -euo pipefail
+          cd kernel_source
+
+          CLANG_DIR="${GITHUB_WORKSPACE}/toolchain/proton-clang"
+          export PATH="${CLANG_DIR}/bin:${PATH}"
+
+          OUT_DIR="${GITHUB_WORKSPACE}/out"
+          rm -rf "${OUT_DIR}"
+          mkdir -p "${OUT_DIR}"
+
+          echo "========================================"
+          echo "BRUTE FORCE 2: 生成全局宏强开文件 (核弹级)"
+          echo "========================================"
+          # 绕过 Kbuild，强制让所有 C 源码认为功能已全部开启，防止代码被预处理器剔除
+          cat << 'EOF' > ksu_force.h
+          #pragma once
+          #undef CONFIG_KSU
+          #define CONFIG_KSU 1
+          #define __enabled_CONFIG_KSU 1
+          
+          #undef CONFIG_KSU_SUSFS
+          #define CONFIG_KSU_SUSFS 1
+          #define __enabled_CONFIG_KSU_SUSFS 1
+          
+          #undef CONFIG_KSU_SULOG
+          #define CONFIG_KSU_SULOG 1
+          #define __enabled_CONFIG_KSU_SULOG 1
+          
+          #undef CONFIG_KSU_ADB_ROOT
+          #define CONFIG_KSU_ADB_ROOT 1
+          #define __enabled_CONFIG_KSU_ADB_ROOT 1
+          
+          #undef CONFIG_KSU_SPOOF_UNAME
+          #define CONFIG_KSU_SPOOF_UNAME 1
+          #define __enabled_CONFIG_KSU_SPOOF_UNAME 1
+          EOF
+
+          # 把这个头文件强制注入到所有被编译的 C 代码中
+          FORCE_MACRO_FLAG="-include $(pwd)/ksu_force.h"
+
+          # 强制 Makefile 正确添加这些扩展功能模块（解决 SukiSU 独有的条件编译分支）
+          MAKE_FORCE_Y=(
+            "CONFIG_KSU=y"
+            "CONFIG_KSU_SUSFS=y"
+            "CONFIG_KSU_SULOG=y"
+            "CONFIG_KSU_ADB_ROOT=y"
+            "CONFIG_KSU_SPOOF_UNAME=y"
+          )
+
+          MAKE_ARGS=(
+            ARCH=arm64
+            LLVM=1
+            LLVM_IAS=1
+            CC=clang
+            KCFLAGS="-Wno-unused-function ${FORCE_MACRO_FLAG}"
+            KLDFLAGS="-Wl,--thinlto-jobs=$(nproc)"
+            CROSS_COMPILE=aarch64-linux-gnu-
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+            O="${OUT_DIR}"
+          )
+
+          echo "========================================"
+          echo "1. 生成基础 defconfig"
+          echo "========================================"
+          make "${MAKE_ARGS[@]}" vendor/lahaina-qgki_defconfig
+
+          echo "========================================"
+          echo "2. 终极暴力编译开始"
+          echo "========================================"
+          make "${MAKE_ARGS[@]}" "${MAKE_FORCE_Y[@]}" -j"$(nproc)"
+      # 5. 打包 AnyKernel3
+      - name: Pack with AnyKernel3
+        shell: bash
+        run: |
+          set -e
+          cd "${GITHUB_WORKSPACE}"
+
+          git clone --depth=1 https://github.com/huaiding230-code/AnyKernel3.git AnyKernel3
+          cd AnyKernel3
+          rm -rf .git README.md *placeholder
+
+          sed -i -E 's/^[[:space:]]*do\.devicecheck=.*/do.devicecheck=0/' anykernel.sh
+          sed -i -E 's/^[[:space:]]*(BLOCK|block)=.*/BLOCK=\/dev\/block\/bootdevice\/by-name\/boot;/' anykernel.sh
+          sed -i -E 's/^[[:space:]]*(IS_SLOT_DEVICE|is_slot_device)=.*/IS_SLOT_DEVICE=1;/' anykernel.sh
+
+          echo "========================================"
+          echo "提取内核镜像产物"
+          echo "========================================"
+          OUT_DIR="${GITHUB_WORKSPACE}/out"
+
+          if [ -f "${OUT_DIR}/arch/arm64/boot/dtb" ]; then
+            cp "${OUT_DIR}/arch/arm64/boot/dtb" ./
+            echo "[+] 已提取 dtb"
+          fi
+          if [ -f "${OUT_DIR}/arch/arm64/boot/Image.gz-dtb" ]; then
+            cp "${OUT_DIR}/arch/arm64/boot/Image.gz-dtb" ./
+            echo "[+] 已提取 Image.gz-dtb"
+          elif [ -f "${OUT_DIR}/arch/arm64/boot/Image" ]; then
+            cp "${OUT_DIR}/arch/arm64/boot/Image" ./
+            echo "[+] 已提取 Image"
+          else
+            echo "[-] 致命错误：未找到支持的内核镜像文件！"
+            exit 1
+          fi
+
+      # 6. 上传 Artifact
+      - name: Upload Kernel Zip Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SukiSU-SUSFS-Kernel
+          path: AnyKernel3/*
       # 4. 构建集成内核
       - name: Build Integrated Kernel
         run: |
