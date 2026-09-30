@@ -43,16 +43,17 @@ jobs:
           echo "========================================"
           echo "BRUTE FORCE 1: 物理抹除 Makefile 中的条件编译"
           echo "========================================"
-          # 强行把原本需要 CONFIG 才能激活的编译，变成无条件的 obj-y
           sed -i 's/obj-$(CONFIG_KSU)/obj-y/g' drivers/kernelsu/Makefile || true
           sed -i 's/obj-$(CONFIG_KSU)/obj-y/g' KernelSU/kernel/Makefile || true
           sed -i 's/obj-$(CONFIG_KSU_SUSFS)/obj-y/g' fs/Makefile || true
 
-          # 确保驱动树和文件系统树绝对包含我们的模块 (插在文件末尾)
-          echo 'obj-y += kernelsu/' >> drivers/Makefile
-          echo 'obj-y += susfs.o' >> fs/Makefile
+          if ! grep -q "obj-y += kernelsu/" drivers/Makefile; then
+            echo 'obj-y += kernelsu/' >> drivers/Makefile
+          fi
+          if ! grep -q "obj-y += susfs.o" fs/Makefile; then
+            echo 'obj-y += susfs.o' >> fs/Makefile
+          fi
 
-          # 清理上一版残留的自身引用死循环 Bug
           sed -i '/source "drivers\/kernelsu\/Kconfig"/d' drivers/kernelsu/Kconfig || true
           sed -i '/source "drivers\/kernelsu\/Kconfig"/d' KernelSU/kernel/Kconfig || true
 
@@ -69,25 +70,43 @@ jobs:
           rm -rf "${OUT_DIR}"
           mkdir -p "${OUT_DIR}"
 
-          # 把所有必须的宏强行塞进 C 编译器（解决源码层面的宏隔离）
-          EXTRA_FLAGS="-DCONFIG_KSU=1 -DCONFIG_KSU_SUSFS=1 -DCONFIG_KSU_SUSFS_SUS_PATH=1 -DCONFIG_KSU_SUSFS_SUS_MOUNT=1 -DCONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=1 -DCONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=1 -DCONFIG_KSU_SUSFS_SUS_KSTAT=1 -DCONFIG_KSU_SUSFS_SPOOF_UNAME=1 -DCONFIG_KSU_SUSFS_ENABLE_LOG=1 -DCONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=1 -DCONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=1 -DCONFIG_KSU_SUSFS_OPEN_REDIRECT=1 -DCONFIG_KSU_SPOOF_CPU=1"
+          echo "========================================"
+          echo "BRUTE FORCE 2: 生成全局宏强开文件 (核弹级)"
+          echo "========================================"
+          # 绕过 Kbuild，强制让所有 C 源码认为功能已全部开启，防止代码被预处理器剔除
+          cat << 'EOF' > ksu_force.h
+          #pragma once
+          #undef CONFIG_KSU
+          #define CONFIG_KSU 1
+          #define __enabled_CONFIG_KSU 1
+          
+          #undef CONFIG_KSU_SUSFS
+          #define CONFIG_KSU_SUSFS 1
+          #define __enabled_CONFIG_KSU_SUSFS 1
+          
+          #undef CONFIG_KSU_SULOG
+          #define CONFIG_KSU_SULOG 1
+          #define __enabled_CONFIG_KSU_SULOG 1
+          
+          #undef CONFIG_KSU_ADB_ROOT
+          #define CONFIG_KSU_ADB_ROOT 1
+          #define __enabled_CONFIG_KSU_ADB_ROOT 1
+          
+          #undef CONFIG_KSU_SPOOF_UNAME
+          #define CONFIG_KSU_SPOOF_UNAME 1
+          #define __enabled_CONFIG_KSU_SPOOF_UNAME 1
+          EOF
 
-          # 核心大招：把所有的开关直接做成 make 的命令行参数
-          # 在 GNU Make 中，命令行参数拥有最高特权，无视一切 Makefile 里的擦除行为！
+          # 把这个头文件强制注入到所有被编译的 C 代码中
+          FORCE_MACRO_FLAG="-include $(pwd)/ksu_force.h"
+
+          # 强制 Makefile 正确添加这些扩展功能模块（解决 SukiSU 独有的条件编译分支）
           MAKE_FORCE_Y=(
             "CONFIG_KSU=y"
             "CONFIG_KSU_SUSFS=y"
-            "CONFIG_KSU_SUSFS_SUS_PATH=y"
-            "CONFIG_KSU_SUSFS_SUS_MOUNT=y"
-            "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=y"
-            "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y"
-            "CONFIG_KSU_SUSFS_SUS_KSTAT=y"
-            "CONFIG_KSU_SUSFS_SPOOF_UNAME=y"
-            "CONFIG_KSU_SUSFS_ENABLE_LOG=y"
-            "CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y"
-            "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y"
-            "CONFIG_KSU_SUSFS_OPEN_REDIRECT=y"
-            "CONFIG_KSU_SPOOF_CPU=y"
+            "CONFIG_KSU_SULOG=y"
+            "CONFIG_KSU_ADB_ROOT=y"
+            "CONFIG_KSU_SPOOF_UNAME=y"
           )
 
           MAKE_ARGS=(
@@ -95,7 +114,7 @@ jobs:
             LLVM=1
             LLVM_IAS=1
             CC=clang
-            KCFLAGS="-Wno-unused-function ${EXTRA_FLAGS}"
+            KCFLAGS="-Wno-unused-function ${FORCE_MACRO_FLAG}"
             KLDFLAGS="-Wl,--thinlto-jobs=$(nproc)"
             CROSS_COMPILE=aarch64-linux-gnu-
             CROSS_COMPILE_ARM32=arm-linux-gnueabi-
@@ -110,7 +129,6 @@ jobs:
           echo "========================================"
           echo "2. 终极暴力编译开始"
           echo "========================================"
-          # 关键点：将 MAKE_FORCE_Y 数组直接喂给 make
           make "${MAKE_ARGS[@]}" "${MAKE_FORCE_Y[@]}" -j"$(nproc)"
       # 5. 打包 AnyKernel3
       - name: Pack with AnyKernel3
