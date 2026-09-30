@@ -40,6 +40,14 @@ jobs:
           git clone --depth=1 https://github.com/huaiding230-code/SukiSU-Ultra KernelSU
           bash KernelSU/kernel/setup.sh
 
+          # 1. 修复递归引用 bug：清除 drivers/kernelsu/Kconfig 内部误追加的自我引用
+          sed -i '/source "drivers\/kernelsu\/Kconfig"/d' drivers/kernelsu/Kconfig || true
+          sed -i '/source "drivers\/kernelsu\/Kconfig"/d' KernelSU/kernel/Kconfig || true
+
+          # 2. 确保 drivers/Kconfig 里有且仅有一条对 KSU Kconfig 的引用
+          sed -i '/drivers\/kernelsu\/Kconfig/d' drivers/Kconfig || true
+          echo 'source "drivers/kernelsu/Kconfig"' >> drivers/Kconfig
+
           # 1. 强行将 kernelsu 的 Makefile 中的条件编译改为 obj-y
           sed -i 's/obj-$(CONFIG_KSU)/obj-y/g' drivers/kernelsu/Makefile || true
           sed -i 's/obj-$(CONFIG_KSU)/obj-y/g' KernelSU/kernel/Makefile || true
@@ -69,6 +77,7 @@ jobs:
           mkdir -p "${OUT_DIR}"
 
           DEFCONFIG_TARGET="vendor/lahaina-qgki_defconfig"
+          DEFCONFIG_PATH="arch/arm64/configs/${DEFCONFIG_TARGET}"
 
           # 1. 确保在 MAKE_ARGS 使用前先定义 EXTRA_FLAGS
           EXTRA_FLAGS="-DCONFIG_KSU=1 -DCONFIG_KSU_SUSFS=1 -DCONFIG_KSU_SUSFS_SUS_PATH=1 -DCONFIG_KSU_SUSFS_SUS_MOUNT=1 -DCONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=1 -DCONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=1 -DCONFIG_KSU_SUSFS_SUS_KSTAT=1 -DCONFIG_KSU_SUSFS_SPOOF_UNAME=1 -DCONFIG_KSU_SUSFS_ENABLE_LOG=1 -DCONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=1 -DCONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=1 -DCONFIG_KSU_SUSFS_OPEN_REDIRECT=1 -DCONFIG_KSU_SPOOF_CPU=1"
@@ -86,8 +95,6 @@ jobs:
           if ! grep -q "drivers/kernelsu/Kconfig" drivers/Kconfig; then
             echo 'source "drivers/kernelsu/Kconfig"' >> drivers/Kconfig
           fi
-
-          DEFCONFIG_PATH="arch/arm64/configs/vendor/lahaina-qgki_defconfig"
 
           echo "========================================"
           echo "3. 向 target defconfig 注入所有功能与优化配置"
