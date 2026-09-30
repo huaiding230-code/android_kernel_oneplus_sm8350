@@ -28,7 +28,6 @@ jobs:
           git clone --depth=1 https://github.com/huaiding230-code/proton-clang.git toolchain/proton-clang
           echo "${GITHUB_WORKSPACE}/toolchain/proton-clang/bin" >> $GITHUB_PATH
 
-      # 3. 集成 SukiSU-Ultra 与 SUSFS 源码
       - name: Integrate SukiSU Ultra + SUSFS
         run: |
           set -euo pipefail
@@ -52,16 +51,19 @@ jobs:
           bash /tmp/SukiSU-Ultra/kernel/setup.sh
 
           echo "========================================"
-          echo "4. 注入 SUSFS 模块与头文件"
+          echo "4. 完整注入 SUSFS 源码与官方补丁"
           echo "========================================"
-          SUSFS_C=$(find /tmp/susfs4ksu -name "susfs.c" | head -n 1)
-          if [ -n "$SUSFS_C" ]; then
-            cp "$SUSFS_C" fs/
-          else
-            echo "[-] 错误: 未找到 susfs.c" && exit 1
-          fi
-          find /tmp/susfs4ksu -name "susfs*.h" -exec cp {} include/linux/ \;
+          # 复制 susfs 文件
+          cp -av /tmp/susfs4ksu/kernel_patches/fs/* fs/
+          cp -av /tmp/susfs4ksu/kernel_patches/include/linux/* include/linux/
 
+          # 关键：应用 SUSFS 的 VFS 内核底层补丁
+          if [ -f "/tmp/susfs4ksu/kernel_patches/50_add_susfs_in_kernel.patch" ]; then
+            echo "[+] 正在应用 50_add_susfs_in_kernel.patch..."
+            patch -p1 < /tmp/susfs4ksu/kernel_patches/50_add_susfs_in_kernel.patch || echo "[-] 部分补丁可能已存在或需手动处理，继续..."
+          fi
+
+          # 确保 fs/Makefile 和 fs/Kconfig 包含 susfs
           if ! grep -q "susfs.o" fs/Makefile; then
             echo "obj-\$(CONFIG_KSU_SUSFS) += susfs.o" >> fs/Makefile
           fi
