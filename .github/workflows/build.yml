@@ -37,6 +37,20 @@ jobs:
           git clone --depth=1 https://github.com/huaiding230-code/SukiSU-Ultra.git KernelSU
           bash KernelSU/kernel/setup.sh
 
+          echo "========================================"
+          echo "修复 DTS Vendor Makefile 的空格/TAB 语法错误"
+          echo "========================================"
+          # 1. 如果 vendor DTS 是独立的 git 子目录，强制全量还原
+          if [ -d "arch/arm64/boot/dts/vendor" ]; then
+            (cd arch/arm64/boot/dts/vendor && git checkout . 2>/dev/null || true)
+          fi
+
+          # 2. 强行把 lemonadev/Makefile 第 14 行开头的 8 个空格替换为标准 TAB 键
+          DTS_MAKEFILE="arch/arm64/boot/dts/vendor/oplus/lemonadev/Makefile"
+          if [ -f "${DTS_MAKEFILE}" ]; then
+            sed -i 's/^        /\t/' "${DTS_MAKEFILE}"
+          fi
+
       # 4. 构建集成内核
       - name: Build Integrated Kernel
         run: |
