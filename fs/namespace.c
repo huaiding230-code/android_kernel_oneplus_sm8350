@@ -4169,6 +4169,9 @@ const struct proc_ns_operations mntns_operations = {
 
 int path_umount(struct path *path, int flags)
 {
+#ifdef CONFIG_KSU_SUSFS
+	susfs_run_susfs_try_umount_for_current();
+#endif
 	return do_umount(real_mount(path->mnt), flags);
 }
 EXPORT_SYMBOL(path_umount);
