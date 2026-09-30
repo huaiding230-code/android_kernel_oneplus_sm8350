@@ -19,7 +19,8 @@
 #define SMEM_PROJECT    135
 
 #define UINT2Ptr(n)        (uint32_t *)(n)
-#define Ptr2UINT32(p)    (uint32_t)(p)
+/* 修改后：先转为与指针等宽的 uintptr_t，再转为 uint32_t */
+#define Ptr2UINT32(p)    (uint32_t)(uintptr_t)(p)
 
 #define PROJECT_VERSION            (0x1)
 #define PCB_VERSION                (0x2)
