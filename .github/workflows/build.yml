@@ -27,24 +27,49 @@ jobs:
           mkdir -p toolchain
           git clone --depth=1 https://github.com/huaiding230-code/proton-clang.git toolchain/proton-clang
           echo "${GITHUB_WORKSPACE}/toolchain/proton-clang/bin" >> $GITHUB_PATH
-      # 3. 克隆 SukiSU Ultra + sesfs4ksu
+          
       - name: Integrate SukiSU Ultra + SUSFS
         run: |
           set -euo pipefail
           cd kernel_source
-
-          rm -rf KernelSU drivers/kernelsu
-          git clone --depth=1 https://github.com/huaiding230-code/SukiSU-Ultra.git KernelSU
-          bash KernelSU/kernel/setup.sh
-
-          # 清理 Kconfig 递归自引用
-          if [ -f "KernelSU/kernel/Kconfig" ]; then
-            sed -i '/source.*drivers\/kernelsu\/Kconfig/d' KernelSU/kernel/Kconfig
+          
+          echo "========================================"
+          echo "1. 克隆你个人仓库的 SukiSU Ultra 与 susfs4ksu"
+          echo "========================================"
+          
+          rm -rf /tmp/SukiSU-Ultra /tmp/susfs4ksu
+          git clone --depth=1 https://github.com/huaiding230-code/SukiSU-Ultra.git /tmp/SukiSU-Ultra
+          git clone --depth=1 https://github.com/huaiding230-code/susfs4ksu.git /tmp/susfs4ksu
+          
+          echo "========================================"
+          echo "2. 清理 dts 设备树冲突节点"
+          echo "========================================"
+          git checkout -- arch/arm64/boot/dts/ || true
+          
+          echo "========================================"
+          echo "3. 执行你魔改过的 setup.sh (全权交由你的库处理)"
+          echo "========================================"
+          bash /tmp/SukiSU-Ultra/kernel/setup.sh
+          
+          echo "========================================"
+          echo "4. 从 susfs4ksu 注入 SUSFS 模块与 5.4 Patch"
+          echo "========================================"
+          SUSFS_C=$(find /tmp/susfs4ksu -name "susfs.c" | head -n 1)
+          if [ -n "$SUSFS_C" ]; then
+            cp "$SUSFS_C" fs/
+          else
+            echo "[-] 错误: 未找到 susfs.c" && exit 1
           fi
-          if [ -f "drivers/kernelsu/Kconfig" ]; then
-            sed -i '/source.*drivers\/kernelsu\/Kconfig/d' drivers/kernelsu/Kconfig
+          
+          find /tmp/susfs4ksu -name "susfs*.h" -exec cp {} include/linux/ \;
+          
+          if ! grep -q "susfs.o" fs/Makefile; then
+            echo "obj-\$(CONFIG_KSU_SUSFS) += susfs.o" >> fs/Makefile
           fi
-
+          if ! grep -q "CONFIG_KSU_SUSFS" fs/Kconfig; then
+            echo -e '\nconfig KSU_SUSFS\n\tbool "SUSFS support"\n\tdefault y\n' >> fs/Kconfig
+          fi
+          
       # 4. 构建集成内核
       - name: Build Integrated Kernel
         run: |
