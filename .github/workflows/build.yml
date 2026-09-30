@@ -27,37 +27,7 @@ jobs:
           mkdir -p toolchain
           git clone --depth=1 https://github.com/huaiding230-code/proton-clang.git toolchain/proton-clang
           echo "${GITHUB_WORKSPACE}/toolchain/proton-clang/bin" >> $GITHUB_PATH
-
-      name: Phase 2 - Integrated SukiSU Ultra + SUSFS Kernel Build
-
-on:
-  workflow_dispatch:
-
-jobs:
-  build:
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Maximize Build Space
-        uses: easimon/maximize-build-space@master
-        with:
-          root-reserve-mb: 8192
-          temp-reserve-mb: 2048
-
-      # 1. 拉取 LineageOS 内核源码
-      - name: Checkout Kernel Source
-        uses: actions/checkout@v4
-        with:
-          ref: lineage-23.2
-          path: kernel_source
-          fetch-depth: 1
-
-      # 2. 拉取 Proton-Clang 工具链
-      - name: Setup Proton-Clang Toolchain
-        run: |
-          mkdir -p toolchain
-          git clone --depth=1 https://github.com/huaiding230-code/proton-clang.git toolchain/proton-clang
-          echo "${GITHUB_WORKSPACE}/toolchain/proton-clang/bin" >> $GITHUB_PATH
-
+          
       # 3. 终极暴力集成 SukiSU-Ultra 与 SUSFS
       - name: Integrate SukiSU Ultra + SUSFS
         run: |
