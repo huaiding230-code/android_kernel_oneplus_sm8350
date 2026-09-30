@@ -165,7 +165,6 @@ jobs:
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SELINUX_HIDE
 
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_QTI_HW_KEY_MANAGER
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_QTI_CRYPTO_TZ
           fi
 
           # 刷新配置
