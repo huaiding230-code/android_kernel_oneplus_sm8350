@@ -235,7 +235,7 @@ static inline void init_new_task_load(struct task_struct *p)
 
 static inline void mark_task_starting(struct task_struct *p) { }
 static inline void set_window_start(struct rq *rq) { }
-static inline int sched_cpu_high_irqload(int cpu) { return -ENODEV; }
+static inline int sched_cpu_high_irqload(int cpu) { return 0; }
 
 static inline void sched_account_irqstart(int cpu, struct task_struct *curr,
 					  u64 wallclock)
