@@ -28,7 +28,7 @@ jobs:
           git clone --depth=1 https://github.com/huaiding230-code/proton-clang.git toolchain/proton-clang
           echo "${GITHUB_WORKSPACE}/toolchain/proton-clang/bin" >> $GITHUB_PATH
 
-      # 3. 集成 SukiSU-Ultra 与 SUSFS 源码
+      # 3. 完整集成 SukiSU-Ultra 与 SUSFS（源码 + Kconfig 声明链）
       - name: Integrate SukiSU Ultra + SUSFS
         run: |
           set -euo pipefail
@@ -47,12 +47,27 @@ jobs:
           cp -f susfs_repo/kernel_patches/fs/susfs.c fs/
           cp -f susfs_repo/kernel_patches/fs/susfs.h fs/ || true
 
-          # 确保 fs/Makefile 物理编译 susfs.o
+          # 确保 fs/Makefile 编译 susfs.o
           if ! grep -q "obj-y += susfs.o" fs/Makefile; then
             echo 'obj-y += susfs.o' >> fs/Makefile
           fi
 
-          # 清理 Kconfig 递归引用防报错
+          echo "========================================"
+          echo "3. 注入 Kconfig 声明（防止 olddefconfig 擦除配置）"
+          echo "========================================"
+          # 确保 drivers/Kconfig 引入了 kernelsu 的 Kconfig
+          if ! grep -q "drivers/kernelsu/Kconfig" drivers/Kconfig; then
+            echo 'source "drivers/kernelsu/Kconfig"' >> drivers/Kconfig
+          fi
+
+          # 确保 fs/Kconfig 引入了 susfs 的配置定义
+          if [ -f "fs/Kconfig" ] && ! grep -q "CONFIG_KSU_SUSFS" fs/Kconfig; then
+            echo 'config KSU_SUSFS' >> fs/Kconfig
+            echo '	bool "SUSFS for KernelSU"' >> fs/Kconfig
+            echo '	default y' >> fs/Kconfig
+          fi
+
+          # 清理可能存在的递归引用
           sed -i '/source "drivers\/kernelsu\/Kconfig"/d' drivers/kernelsu/Kconfig || true
 
       # 4. 构建集成内核
