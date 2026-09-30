@@ -27,35 +27,33 @@ jobs:
           mkdir -p toolchain
           git clone --depth=1 https://github.com/huaiding230-code/proton-clang.git toolchain/proton-clang
           echo "${GITHUB_WORKSPACE}/toolchain/proton-clang/bin" >> $GITHUB_PATH
-          
-      # 3. 终极暴力集成 SukiSU-Ultra 与 SUSFS
+
+      # 3. 集成 SukiSU-Ultra 与 SUSFS 源码
       - name: Integrate SukiSU Ultra + SUSFS
         run: |
           set -euo pipefail
           cd kernel_source
-
+          
           echo "========================================"
-          echo "拉取仓库并运行集成脚本"
+          echo "1. 拉取 SukiSU Ultra 仓库并运行 setup.sh"
           echo "========================================"
           git clone --depth=1 https://github.com/huaiding230-code/SukiSU-Ultra KernelSU
           bash KernelSU/kernel/setup.sh
 
           echo "========================================"
-          echo "BRUTE FORCE 1: 物理抹除 Makefile 中的条件编译"
+          echo "2. 拉取 susfs4ksu 并同步源码到 fs/ 目录"
           echo "========================================"
-          sed -i 's/obj-$(CONFIG_KSU)/obj-y/g' drivers/kernelsu/Makefile || true
-          sed -i 's/obj-$(CONFIG_KSU)/obj-y/g' KernelSU/kernel/Makefile || true
-          sed -i 's/obj-$(CONFIG_KSU_SUSFS)/obj-y/g' fs/Makefile || true
+          git clone --depth=1 https://github.com/huaiding230-code/susfs4ksu susfs_repo
+          cp -f susfs_repo/kernel_patches/fs/susfs.c fs/
+          cp -f susfs_repo/kernel_patches/fs/susfs.h fs/ || true
 
-          if ! grep -q "obj-y += kernelsu/" drivers/Makefile; then
-            echo 'obj-y += kernelsu/' >> drivers/Makefile
-          fi
+          # 确保 fs/Makefile 物理编译 susfs.o
           if ! grep -q "obj-y += susfs.o" fs/Makefile; then
             echo 'obj-y += susfs.o' >> fs/Makefile
           fi
 
+          # 清理 Kconfig 递归引用防报错
           sed -i '/source "drivers\/kernelsu\/Kconfig"/d' drivers/kernelsu/Kconfig || true
-          sed -i '/source "drivers\/kernelsu\/Kconfig"/d' KernelSU/kernel/Kconfig || true
 
       # 4. 构建集成内核
       - name: Build Integrated Kernel
@@ -63,84 +61,97 @@ jobs:
           set -euo pipefail
           cd kernel_source
 
+          # 配置 Clang 工具链路径
           CLANG_DIR="${GITHUB_WORKSPACE}/toolchain/proton-clang"
           export PATH="${CLANG_DIR}/bin:${PATH}"
 
+          # 准备干净的输出目录
           OUT_DIR="${GITHUB_WORKSPACE}/out"
           rm -rf "${OUT_DIR}"
           mkdir -p "${OUT_DIR}"
 
           echo "========================================"
-          echo "BRUTE FORCE 2: 生成全局宏强开文件 (核弹级)"
+          echo "1. 解锁 Kconfig 隐式配置限制"
           echo "========================================"
-          # 绕过 Kbuild，强制让所有 C 源码认为功能已全部开启，防止代码被预处理器剔除
-          cat << 'EOF' > ksu_force.h
-          #pragma once
-          #undef CONFIG_KSU
-          #define CONFIG_KSU 1
-          #define __enabled_CONFIG_KSU 1
-          
-          #undef CONFIG_KSU_SUSFS
-          #define CONFIG_KSU_SUSFS 1
-          #define __enabled_CONFIG_KSU_SUSFS 1
-          
-          #undef CONFIG_KSU_SULOG
-          #define CONFIG_KSU_SULOG 1
-          #define __enabled_CONFIG_KSU_SULOG 1
-          
-          #undef CONFIG_KSU_ADB_ROOT
-          #define CONFIG_KSU_ADB_ROOT 1
-          #define __enabled_CONFIG_KSU_ADB_ROOT 1
-          
-          #undef CONFIG_KSU_SPOOF_UNAME
-          #define CONFIG_KSU_SPOOF_UNAME 1
-          #define __enabled_CONFIG_KSU_SPOOF_UNAME 1
-          EOF
+          if [ -f "net/core/Kconfig" ]; then
+            sed -i 's/^config RPS$/config RPS\n\tprompt "Receive Packet Steering"/g' net/core/Kconfig
+          fi
 
-          # 把这个头文件强制注入到所有被编译的 C 代码中
-          FORCE_MACRO_FLAG="-include $(pwd)/ksu_force.h"
+          echo "========================================"
+          echo "2. 配置 LineageOS Target Defconfig"
+          echo "========================================"
+          DEFCONFIG_TARGET="vendor/lahaina-qgki_defconfig"
+          echo "使用配置文件: ${DEFCONFIG_TARGET}"
 
-          # 强制 Makefile 正确添加这些扩展功能模块（解决 SukiSU 独有的条件编译分支）
-          MAKE_FORCE_Y=(
-            "CONFIG_KSU=y"
-            "CONFIG_KSU_SUSFS=y"
-            "CONFIG_KSU_SULOG=y"
-            "CONFIG_KSU_ADB_ROOT=y"
-            "CONFIG_KSU_SPOOF_UNAME=y"
-          )
+          # 全局注入 KCFLAGS
+          EXTRA_FLAGS="-DCONFIG_KSU=1 -DCONFIG_KSU_SUSFS=1 -DCONFIG_KSU_SUSFS_SUS_PATH=1 -DCONFIG_KSU_SUSFS_SUS_MOUNT=1 -DCONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=1 -DCONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=1 -DCONFIG_KSU_SUSFS_SUS_KSTAT=1 -DCONFIG_KSU_SUSFS_SPOOF_UNAME=1 -DCONFIG_KSU_SUSFS_ENABLE_LOG=1 -DCONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=1 -DCONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=1 -DCONFIG_KSU_SUSFS_OPEN_REDIRECT=1 -DCONFIG_KSU_SPOOF_CPU=1"
 
           MAKE_ARGS=(
             ARCH=arm64
             LLVM=1
             LLVM_IAS=1
             CC=clang
-            KCFLAGS="-Wno-unused-function ${FORCE_MACRO_FLAG}"
+            KCFLAGS="-Wno-unused-function ${EXTRA_FLAGS}"
             KLDFLAGS="-Wl,--thinlto-jobs=$(nproc)"
             CROSS_COMPILE=aarch64-linux-gnu-
             CROSS_COMPILE_ARM32=arm-linux-gnueabi-
             O="${OUT_DIR}"
           )
 
-          echo "========================================"
-          echo "1. 生成基础 defconfig"
-          echo "========================================"
-          make "${MAKE_ARGS[@]}" vendor/lahaina-qgki_defconfig
+          # 加载基础配置
+          make "${MAKE_ARGS[@]}" "${DEFCONFIG_TARGET}"
 
           echo "========================================"
-          echo "2. 终极暴力编译开始"
+          echo "3. 使用 scripts/config 启用功能"
           echo "========================================"
-          make "${MAKE_ARGS[@]}" "${MAKE_FORCE_Y[@]}" -j"$(nproc)"
+          CONFIG_TOOL="scripts/config"
+          if [ -f "${CONFIG_TOOL}" ]; then
+            chmod +x "${CONFIG_TOOL}"
+            # 底层网络与安全依赖
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_NET
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_INET
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KEYS
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_PERF_EVENTS
+
+            # SukiSU Ultra & SUSFS 配置
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_SUS_PATH
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_SUS_MOUNT
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_SUS_KSTAT
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_SPOOF_UNAME
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_ENABLE_LOG
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_OPEN_REDIRECT
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SPOOF_CPU
+
+            # 禁用调试提升速度
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --disable CONFIG_DEBUG_INFO
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --disable CONFIG_DEBUG_INFO_DWARF4
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_DEBUG_INFO_NONE
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --disable CONFIG_DEBUG_INFO_BTF
+          fi
+
+          # 刷新并生成配置
+          make "${MAKE_ARGS[@]}" olddefconfig
+
+          echo "========================================"
+          echo "4. 开始多核极速编译内核"
+          echo "========================================"
+          make "${MAKE_ARGS[@]}" -j"$(nproc)"
+
       # 5. 打包 AnyKernel3
       - name: Pack with AnyKernel3
         shell: bash
         run: |
           set -e
           cd "${GITHUB_WORKSPACE}"
-
           git clone --depth=1 https://github.com/huaiding230-code/AnyKernel3.git AnyKernel3
           cd AnyKernel3
           rm -rf .git README.md *placeholder
-
           sed -i -E 's/^[[:space:]]*do\.devicecheck=.*/do.devicecheck=0/' anykernel.sh
           sed -i -E 's/^[[:space:]]*(BLOCK|block)=.*/BLOCK=\/dev\/block\/bootdevice\/by-name\/boot;/' anykernel.sh
           sed -i -E 's/^[[:space:]]*(IS_SLOT_DEVICE|is_slot_device)=.*/IS_SLOT_DEVICE=1;/' anykernel.sh
@@ -149,121 +160,6 @@ jobs:
           echo "提取内核镜像产物"
           echo "========================================"
           OUT_DIR="${GITHUB_WORKSPACE}/out"
-
-          if [ -f "${OUT_DIR}/arch/arm64/boot/dtb" ]; then
-            cp "${OUT_DIR}/arch/arm64/boot/dtb" ./
-            echo "[+] 已提取 dtb"
-          fi
-          if [ -f "${OUT_DIR}/arch/arm64/boot/Image.gz-dtb" ]; then
-            cp "${OUT_DIR}/arch/arm64/boot/Image.gz-dtb" ./
-            echo "[+] 已提取 Image.gz-dtb"
-          elif [ -f "${OUT_DIR}/arch/arm64/boot/Image" ]; then
-            cp "${OUT_DIR}/arch/arm64/boot/Image" ./
-            echo "[+] 已提取 Image"
-          else
-            echo "[-] 致命错误：未找到支持的内核镜像文件！"
-            exit 1
-          fi
-
-      # 6. 上传 Artifact
-      - name: Upload Kernel Zip Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: SukiSU-SUSFS-Kernel
-          path: AnyKernel3/*
-      # 4. 构建集成内核
-      - name: Build Integrated Kernel
-        run: |
-          set -euo pipefail
-          cd kernel_source
-
-          CLANG_DIR="${GITHUB_WORKSPACE}/toolchain/proton-clang"
-          export PATH="${CLANG_DIR}/bin:${PATH}"
-
-          OUT_DIR="${GITHUB_WORKSPACE}/out"
-          rm -rf "${OUT_DIR}"
-          mkdir -p "${OUT_DIR}"
-
-          echo "========================================"
-          echo "BRUTE FORCE 2: 生成全局宏强开文件 (核弹级)"
-          echo "========================================"
-          # 绕过 Kbuild，强制让所有 C 源码认为功能已全部开启，防止代码被预处理器剔除
-          cat << 'EOF' > ksu_force.h
-          #pragma once
-          #undef CONFIG_KSU
-          #define CONFIG_KSU 1
-          #define __enabled_CONFIG_KSU 1
-          
-          #undef CONFIG_KSU_SUSFS
-          #define CONFIG_KSU_SUSFS 1
-          #define __enabled_CONFIG_KSU_SUSFS 1
-          
-          #undef CONFIG_KSU_SULOG
-          #define CONFIG_KSU_SULOG 1
-          #define __enabled_CONFIG_KSU_SULOG 1
-          
-          #undef CONFIG_KSU_ADB_ROOT
-          #define CONFIG_KSU_ADB_ROOT 1
-          #define __enabled_CONFIG_KSU_ADB_ROOT 1
-          
-          #undef CONFIG_KSU_SPOOF_UNAME
-          #define CONFIG_KSU_SPOOF_UNAME 1
-          #define __enabled_CONFIG_KSU_SPOOF_UNAME 1
-          EOF
-
-          # 把这个头文件强制注入到所有被编译的 C 代码中
-          FORCE_MACRO_FLAG="-include $(pwd)/ksu_force.h"
-
-          # 强制 Makefile 正确添加这些扩展功能模块（解决 SukiSU 独有的条件编译分支）
-          MAKE_FORCE_Y=(
-            "CONFIG_KSU=y"
-            "CONFIG_KSU_SUSFS=y"
-            "CONFIG_KSU_SULOG=y"
-            "CONFIG_KSU_ADB_ROOT=y"
-            "CONFIG_KSU_SPOOF_UNAME=y"
-          )
-
-          MAKE_ARGS=(
-            ARCH=arm64
-            LLVM=1
-            LLVM_IAS=1
-            CC=clang
-            KCFLAGS="-Wno-unused-function ${FORCE_MACRO_FLAG}"
-            KLDFLAGS="-Wl,--thinlto-jobs=$(nproc)"
-            CROSS_COMPILE=aarch64-linux-gnu-
-            CROSS_COMPILE_ARM32=arm-linux-gnueabi-
-            O="${OUT_DIR}"
-          )
-
-          echo "========================================"
-          echo "1. 生成基础 defconfig"
-          echo "========================================"
-          make "${MAKE_ARGS[@]}" vendor/lahaina-qgki_defconfig
-
-          echo "========================================"
-          echo "2. 终极暴力编译开始"
-          echo "========================================"
-          make "${MAKE_ARGS[@]}" "${MAKE_FORCE_Y[@]}" -j"$(nproc)"
-      # 5. 打包 AnyKernel3
-      - name: Pack with AnyKernel3
-        shell: bash
-        run: |
-          set -e
-          cd "${GITHUB_WORKSPACE}"
-
-          git clone --depth=1 https://github.com/huaiding230-code/AnyKernel3.git AnyKernel3
-          cd AnyKernel3
-          rm -rf .git README.md *placeholder
-
-          sed -i -E 's/^[[:space:]]*do\.devicecheck=.*/do.devicecheck=0/' anykernel.sh
-          sed -i -E 's/^[[:space:]]*(BLOCK|block)=.*/BLOCK=\/dev\/block\/bootdevice\/by-name\/boot;/' anykernel.sh
-          sed -i -E 's/^[[:space:]]*(IS_SLOT_DEVICE|is_slot_device)=.*/IS_SLOT_DEVICE=1;/' anykernel.sh
-
-          echo "========================================"
-          echo "提取内核镜像产物"
-          echo "========================================"
-          OUT_DIR="${GITHUB_WORKSPACE}/out"
-
           if [ -f "${OUT_DIR}/arch/arm64/boot/dtb" ]; then
             cp "${OUT_DIR}/arch/arm64/boot/dtb" ./
             echo "[+] 已提取 dtb"
