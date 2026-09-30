@@ -37,6 +37,9 @@ jobs:
           git clone --depth=1 https://github.com/huaiding230-code/SukiSU-Ultra.git KernelSU
           bash KernelSU/kernel/setup.sh
 
+          # 清理 dts 设备树冲突
+          git checkout -- arch/arm64/boot/dts/ || true
+
           echo "========================================"
           echo "3. 清理 SukiSU 自身的 Kconfig 自引用死循环"
           echo "========================================"
@@ -73,9 +76,6 @@ jobs:
               echo "[+] 应用内核 SUSFS 挂钩补丁..."
               patch -p1 < "$PATCH_FILE" || echo "[!] 警告: Patch 应用有冲突，请检查内核源码。"
           fi
-           # 清理 dts 设备树冲突
-          git checkout -- arch/arm64/boot/dts/ || true
-
 
       # 4. 构建集成内核
       - name: Build Integrated Kernel
