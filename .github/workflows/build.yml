@@ -38,18 +38,44 @@ jobs:
           bash KernelSU/kernel/setup.sh
 
           echo "========================================"
-          echo "修复 DTS Vendor Makefile 的空格/TAB 语法错误"
+          echo "3. 清理 SukiSU 自身的 Kconfig 自引用死循环"
           echo "========================================"
-          # 1. 如果 vendor DTS 是独立的 git 子目录，强制全量还原
-          if [ -d "arch/arm64/boot/dts/vendor" ]; then
-            (cd arch/arm64/boot/dts/vendor && git checkout . 2>/dev/null || true)
+          # 核心修复：防止 setup.sh 创建软链接后，Kconfig 内部自引用导致递归包含
+          if [ -f "KernelSU/kernel/Kconfig" ]; then
+            sed -i '/source.*drivers\/kernelsu\/Kconfig/d' KernelSU/kernel/Kconfig
           fi
+          if [ -f "drivers/kernelsu/Kconfig" ]; then
+            sed -i '/source.*drivers\/kernelsu\/Kconfig/d' drivers/kernelsu/Kconfig
+          fi
+          echo "========================================"
+          echo "4. 克隆 susfs4ksu 并注入模块与底层补丁"
+          echo "========================================"
+          rm -rf /tmp/susfs4ksu
+          git clone --depth=1 https://github.com/huaiding230-code/susfs4ksu.git /tmp/susfs4ksu
+          # 复制 susfs 文件（直接对应你 setup.sh 的逻辑）
+          SUSFS_C=$(find /tmp/susfs4ksu -name "susfs.c" | head -n 1)
+          cp "$SUSFS_C" fs/
+          find /tmp/susfs4ksu -name "susfs*.h" -exec cp {} include/linux/ \;
+          # 修复 susfs.h 前置结构体声明
+          if [ -f include/linux/susfs.h ]; then
+              sed -i '/int susfs_add_sus_path/i struct filename;\nstruct stat;' include/linux/susfs.h
+          fi
+          # 配置 fs/Makefile 编译 susfs.o
+          sed -i '/susfs.o/d' fs/Makefile
+          echo 'obj-$(CONFIG_KSU_SUSFS) += susfs.o' >> fs/Makefile
+          # 补充 Kconfig 配置项
+          if ! grep -q "CONFIG_KSU_SUSFS" fs/Kconfig; then
+              echo -e '\nconfig KSU_SUSFS\n\tbool "SUSFS support"\n\tdefault y\n' >> fs/Kconfig
+          fi
+          # 应用 Linux 内核挂钩 Patch
+          PATCH_FILE="/tmp/susfs4ksu/kernel_patches/50_add_susfs_in_kernel-5.4.patch"
+          if [ -f "$PATCH_FILE" ]; then
+              echo "[+] 应用内核 SUSFS 挂钩补丁..."
+              patch -p1 < "$PATCH_FILE" || echo "[!] 警告: Patch 应用有冲突，请检查内核源码。"
+          fi
+           # 清理 dts 设备树冲突
+          git checkout -- arch/arm64/boot/dts/ || true
 
-          # 2. 强行把 lemonadev/Makefile 第 14 行开头的 8 个空格替换为标准 TAB 键
-          DTS_MAKEFILE="arch/arm64/boot/dts/vendor/oplus/lemonadev/Makefile"
-          if [ -f "${DTS_MAKEFILE}" ]; then
-            sed -i 's/^        /\t/' "${DTS_MAKEFILE}"
-          fi
 
       # 4. 构建集成内核
       - name: Build Integrated Kernel
