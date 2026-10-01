@@ -79,6 +79,11 @@
 #include <net/tls.h>
 #include <linux/compat.h>
 
+/* 兜底处理：当 CONFIG_COMPAT 未定义时提供 compat_ptr 转换 */
+#ifndef compat_ptr
+#define compat_ptr(uptr) ((void __user *)(uintptr_t)(uptr))
+#endif
+
 /* Keep the struct bpf_fib_lookup small so that it fits into a cacheline */
 static_assert(sizeof(struct bpf_fib_lookup) == 64, "struct bpf_fib_lookup size check");
 
