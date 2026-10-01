@@ -119,6 +119,7 @@ jobs:
           CONFIG_TOOL="scripts/config"
           if [ -f "${CONFIG_TOOL}" ]; then
             chmod +x "${CONFIG_TOOL}"
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_RPS
           
             # SukiSU Ultra & SUSFS 核心开关
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU
@@ -134,7 +135,6 @@ jobs:
             # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS
             # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_OPEN_REDIRECT
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SPOOF_CPU
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_RPS
           fi
 
           # 刷新配置
