@@ -142,6 +142,9 @@ jobs:
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KEYS
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SECCOMP
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SECCOMP_FILTER
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_NO_HZ
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_NO_HZ_COMMON
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_NO_HZ_IDLE
           fi
 
           # 刷新配置
