@@ -123,6 +123,7 @@ jobs:
             chmod +x "${CONFIG_TOOL}"
           
             # SukiSU Ultra & SUSFS 核心开关
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_NET
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_RPS
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS
