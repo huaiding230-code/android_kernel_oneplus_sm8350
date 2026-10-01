@@ -12,6 +12,7 @@
 
 #include <mm/slab.h>
 
+#include <media/media-device.h>
 #include <media/v4l2-fh.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-event.h>
