@@ -85,6 +85,7 @@ extern int sysctl_protected_symlinks;
 extern int sysctl_protected_hardlinks;
 extern int sysctl_protected_fifos;
 extern int sysctl_protected_regular;
+extern int path_umount(struct path *path, int flags);
 
 typedef __kernel_rwf_t rwf_t;
 
