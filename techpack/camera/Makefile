@@ -108,3 +108,4 @@ obj-y += drivers/
 else
 $(info Target not found)
 endif
+ccflags-y += -Wno-implicit-function-declaration -Wno-error=implicit-function-declaration
