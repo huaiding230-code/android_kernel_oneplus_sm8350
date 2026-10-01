@@ -129,14 +129,15 @@ jobs:
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_SUS_PATH
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_SUS_MOUNT
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_SUS_KSTAT
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_TRY_UMOUNT
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_SPOOF_UNAME
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_OPEN_REDIRECT
+            
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SPOOF_CPU
           fi
 
