@@ -140,8 +140,6 @@ jobs:
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SPOOF_CPU
             
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KEYS
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KEYS_COMPAT
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_ASYMMETRIC_KEY_TYPE
           fi
 
           # 刷新配置
