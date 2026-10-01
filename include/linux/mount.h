@@ -71,8 +71,8 @@ struct fs_context;
 #endif
 
 struct vfsmount {
-	struct dentry *mnt_root;	/* root of the mounted tree */
-	struct super_block *mnt_sb;	/* pointer to superblock */
+	struct dentry *mnt_root;
+	struct super_block *mnt_sb;
 	int mnt_flags;
 	ANDROID_KABI_RESERVE(1);
 	ANDROID_KABI_RESERVE(2);
@@ -80,10 +80,10 @@ struct vfsmount {
 #ifdef CONFIG_KSU_SUSFS
 	ANDROID_KABI_USE(4, u64 susfs_mnt_id_backup);
 #else
- 	ANDROID_KABI_RESERVE(4);
+	ANDROID_KABI_RESERVE(4);
 #endif
 	void *data;
- } __randomize_layout;
+} __randomize_layout;
 
 struct file; /* forward dec */
 struct path;
