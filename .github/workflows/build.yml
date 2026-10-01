@@ -140,6 +140,8 @@ jobs:
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SPOOF_CPU
             
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KEYS
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SECCOMP
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SECCOMP_FILTER
           fi
 
           # 刷新配置
