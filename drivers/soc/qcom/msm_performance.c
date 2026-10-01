@@ -26,8 +26,6 @@
 #include <linux/errno.h>
 #include <linux/topology.h>
 #include <linux/scmi_protocol.h>
-#include <linux/cpufreq.h>
-#include <linux/perf_event.h>
 
 #define POLL_INT 25
 #define NODE_NAME_MAX_CHARS 16
