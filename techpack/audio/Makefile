@@ -90,4 +90,3 @@ obj-y += soc/
 obj-y += dsp/
 obj-y += ipc/
 obj-y += asoc/
-ccflags-y += -Wno-implicit-function-declaration -Wno-error=implicit-function-declaration
