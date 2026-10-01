@@ -140,6 +140,10 @@ jobs:
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SPOOF_CPU
             
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KEYS
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_ASYMMETRIC_KEY_TYPE
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_ASYMMETRIC_PUBLIC_KEY_SUBTYPE
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_X509_CERTIFICATE_PARSER
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_PKCS7_MESSAGE_PARSER
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SECCOMP
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SECCOMP_FILTER
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_NO_HZ
