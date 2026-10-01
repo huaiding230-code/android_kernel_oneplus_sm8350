@@ -150,6 +150,7 @@ jobs:
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_NO_HZ_COMMON
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_NO_HZ_IDLE
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_ENERGY_MODEL
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --disable CONFIG_IOMMU_DEBUG
           fi
 
           # 刷新配置
