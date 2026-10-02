@@ -180,7 +180,7 @@ jobs:
           make "${MAKE_ARGS[@]}" -j1 prepare
 
           # 第 2 步：单线程单独生成 SELinux 动态头文件（保底）
-          make "${MAKE_ARGS[@]}" -j1 security/selinux/flask.h
+          make "${MAKE_ARGS[@]}" -j1 security/selinux/
 
           # 第 3 步：所有动态头文件全部就绪，全核满载极速编译
           make "${MAKE_ARGS[@]}" -j"$(nproc)"
