@@ -162,6 +162,8 @@ jobs:
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_VIDEO_V4L2
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SND_JACK
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SND_JACK_INPUT_DEV
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_INPUT
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_INPUT_EVDEV
           fi
 
           # 刷新配置
