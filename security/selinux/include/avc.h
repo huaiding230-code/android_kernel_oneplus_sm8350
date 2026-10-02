@@ -18,6 +18,7 @@
 #include <linux/in6.h>
 #include "flask.h"
 #include "security.h"
+#include "av_permissions.h"
 
 /*
  * An entry in the AVC.
