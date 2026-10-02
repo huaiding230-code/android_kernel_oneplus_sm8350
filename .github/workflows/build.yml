@@ -160,6 +160,7 @@ jobs:
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_MEDIA_CONTROLLER
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_VIDEO_DEV
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_VIDEO_V4L2
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SND
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SND_JACK
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SND_JACK_INPUT_DEV
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_INPUT
