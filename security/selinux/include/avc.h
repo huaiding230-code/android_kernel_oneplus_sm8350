@@ -16,7 +16,7 @@
 #include <linux/audit.h>
 #include <linux/lsm_audit.h>
 #include <linux/in6.h>
-
+#include "flask.h"
 #include "security.h"
 
 /*
