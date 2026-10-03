@@ -165,6 +165,9 @@ jobs:
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SND_JACK_INPUT_DEV
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_INPUT
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_INPUT_EVDEV
+            # 强制开启 SELinux 依赖，确保 security/selinux/ 不会被 Kbuild 跳过
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SECURITY
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SECURITY_SELINUX
           fi
 
           # 刷新配置
