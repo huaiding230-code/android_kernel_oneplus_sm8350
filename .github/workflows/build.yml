@@ -32,6 +32,9 @@ jobs:
           cd kernel_source
           git reset --hard HEAD
           git clean -fd
+          # 强行删掉 drivers/Makefile 和 drivers/Kconfig 里所有包含 kernelsu 的行
+          sed -i '/kernelsu/d' drivers/Makefile
+          sed -i '/kernelsu/d' drivers/Kconfig
         
       - name: Build Pure Kernel
         run: |
