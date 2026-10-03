@@ -53,6 +53,11 @@ jobs:
           echo "========================================"
           echo "2. 执行内核编译 (纯净版)"
           echo "========================================"
+      - name: Clean git repository
+        run: |
+          git reset --hard HEAD
+          git clean -fd
+          
           make "${MAKE_ARGS[@]}" -j$(nproc)
       - name: Pack with AnyKernel3
         shell: bash
