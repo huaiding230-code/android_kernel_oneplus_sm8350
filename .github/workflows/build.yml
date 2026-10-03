@@ -228,18 +228,49 @@ jobs:
           echo "5. 生成 SELinux 头文件"
           echo "========================================"
           
+          # 准备基础构建环境
           make "${MAKE_ARGS[@]}" -j1 prepare
           make "${MAKE_ARGS[@]}" -j1 scripts
-          make "${MAKE_ARGS[@]}" -j1 scripts/selinux/genheaders
-          make "${MAKE_ARGS[@]}" -j1 security/selinux/flask.h
           
-          if [ ! -f "${OUT_DIR}/security/selinux/flask.h" ]; then
-              echo "ERROR: flask.h 未生成"
-              find "${OUT_DIR}" -name "flask.h" -o -name "genheaders" -print
+          # 编译真正的 genheaders 生成器
+          make "${MAKE_ARGS[@]}" -j1 \
+              scripts/selinux/genheaders/genheaders
+          
+          GEN="${OUT_DIR}/scripts/selinux/genheaders/genheaders"
+          FLASK_H="${OUT_DIR}/security/selinux/flask.h"
+          AV_PERMISSIONS_H="${OUT_DIR}/security/selinux/av_permissions.h"
+          
+          if [ ! -x "${GEN}" ]; then
+              echo "ERROR: genheaders 生成失败：${GEN}"
+              find "${OUT_DIR}" -type f -name "genheaders" -print
               exit 1
           fi
           
-          echo "[+] flask.h 已生成"
+          # 对应 security/selinux/Makefile 中的：
+          # cmd_flask = $< $(obj)/flask.h $(obj)/av_permissions.h
+          mkdir -p "${OUT_DIR}/security/selinux"
+          
+          echo "[+] 使用 ${GEN} 生成 SELinux 头文件"
+          
+          "${GEN}" \
+              "${FLASK_H}" \
+              "${AV_PERMISSIONS_H}"
+          
+          if [ ! -f "${FLASK_H}" ]; then
+              echo "ERROR: flask.h 未生成"
+              find "${OUT_DIR}" -type f \
+                  \( -name "flask.h" -o -name "av_permissions.h" -o -name "genheaders" \) \
+                  -print
+              exit 1
+          fi
+          
+          if [ ! -f "${AV_PERMISSIONS_H}" ]; then
+              echo "ERROR: av_permissions.h 未生成"
+              exit 1
+          fi
+          
+          echo "[+] flask.h 已生成：${FLASK_H}"
+          echo "[+] av_permissions.h 已生成：${AV_PERMISSIONS_H}"
           
           echo "========================================"
           echo "6. 开始并行编译"
@@ -247,8 +278,6 @@ jobs:
           
           make "${MAKE_ARGS[@]}" -j"$(nproc)"
 
-
-          
       # 5. 打包 AnyKernel3
       - name: Pack with AnyKernel3
         shell: bash
