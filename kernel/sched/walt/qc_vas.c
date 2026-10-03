@@ -5,7 +5,9 @@
 #include <linux/irq.h>
 #include <linux/delay.h>
 #include <trace/events/sched.h>
+#include <linux/tick.h>
 
+#include "../sched.h"
 #include "qc_vas.h"
 
 #ifdef CONFIG_SCHED_WALT
