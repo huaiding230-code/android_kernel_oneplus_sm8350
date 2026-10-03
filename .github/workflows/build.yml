@@ -199,7 +199,12 @@ jobs:
           
           # 执行 olddefconfig 刷新全局配置依赖
           make "${MAKE_ARGS[@]}" olddefconfig
-          
+
+          grep -E '^CONFIG_KSU=|^CONFIG_KSU_SUSFS=' "${OUT_DIR}/.config" || true
+          grep -E '^CONFIG_KSU|^CONFIG_KPM' \
+            "${OUT_DIR}/.config" || true
+
+
           echo "========================================"
           echo "5. Kbuild 准备"
           echo "========================================"
