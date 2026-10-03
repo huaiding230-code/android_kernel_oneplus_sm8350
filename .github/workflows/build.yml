@@ -170,35 +170,69 @@ jobs:
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SECURITY_SELINUX
           fi
 
-          # 刷新配置
+          echo "========================================"
+          echo "4. 执行 olddefconfig 与核心配置强校验"
+          echo "========================================"
+          
+          # 执行 olddefconfig 刷新全局配置依赖
           make "${MAKE_ARGS[@]}" olddefconfig
           
-          echo "========================================"
-          echo "4. 核心配置强校验"
-          echo "========================================"
-          grep -q "CONFIG_RPS=y" "${OUT_DIR}/.config" || { echo "ERROR: CONFIG_RPS 未启用！"; exit 1; }
-          grep -q "CONFIG_KSU_SUSFS=y" "${OUT_DIR}/.config" || { echo "ERROR: CONFIG_KSU_SUSFS 未启用！"; exit 1; }
-
-          echo "========================================"
-          echo "5. 标准 Kbuild 阶段构建"
-          echo "========================================"
-          # 1. 基础准备
-          make "${MAKE_ARGS[@]}" -j1 prepare
-          make "${MAKE_ARGS[@]}" -j1 scripts
-    
-          # 2. 编译 SELinux 目录（已强开 CONFIG_SECURITY_SELINUX，此处必触发 genheaders）
-          make "${MAKE_ARGS[@]}" -j1 security/selinux/
-    
-          # 3. 动态检索 flask.h 是否已成功生成
-          FLASK_FOUND=$(find "${OUT_DIR}" -name "flask.h" | head -n 1)
-          if [ -z "${FLASK_FOUND}" ]; then
-              echo "[-] 致命错误: SELinux 头文件 flask.h 未能在 ${OUT_DIR} 目录生成！"
+          # 最终生效配置的精准核验
+          CHECK_CONFIGS=(
+              "CONFIG_RPS"
+              "CONFIG_SECURITY"
+              "CONFIG_SECURITY_SELINUX"
+              "CONFIG_KSU"
+              "CONFIG_KSU_SUSFS"
+          )
+          
+          ERR_FLAG=0
+          for cfg in "${CHECK_CONFIGS[@]}"; do
+              if grep -q "^${cfg}=y$" "${OUT_DIR}/.config"; then
+                  echo "[+] 校验通过: ${cfg}=y"
+              else
+                  echo "[-] 致命错误: ${cfg} 在最终 .config 中丢失/未启用！"
+                  ERR_FLAG=1
+              fi
+          done
+          
+          if [ "${ERR_FLAG}" -eq 1 ]; then
+              echo "[*] 当前 SELinux 与 KSU 相关的配置状态快照："
+              grep -E 'CONFIG_SECURITY|CONFIG_SELINUX|CONFIG_KSU' "${OUT_DIR}/.config" || true
               exit 1
           fi
-          echo "[+] 成功确认 flask.h 已就绪: ${FLASK_FOUND}"
-    
-          # 4. 头文件准备就绪，开启全核并发编译
+          
+          echo "========================================"
+          echo "5. Kbuild 准备与 SELinux 标头生成"
+          echo "========================================"
+          
+          # 彻底清理历史编译残余
+          rm -f "${OUT_DIR}/security/selinux/flask.h"
+          rm -f "${OUT_DIR}/security/selinux/av_permissions.h"
+          rm -f "${OUT_DIR}/security/selinux/genheaders"
+          
+          # 基础准备阶段
+          make "${MAKE_ARGS[@]}" -j1 prepare
+          make "${MAKE_ARGS[@]}" -j1 scripts
+          
+          # 显式生成 SELinux 动态头文件
+          make "${MAKE_ARGS[@]}" -j1 security/selinux/
+          
+          FLASK_TARGET="${OUT_DIR}/security/selinux/flask.h"
+          if [ ! -f "${FLASK_TARGET}" ]; then
+              echo "[-] 致命错误: SELinux 头文件未能在预期路径生成: ${FLASK_TARGET}"
+              echo "[*] 输出目录下的 flask.h 检索结果:"
+              find "${OUT_DIR}" -name "flask.h" -print || true
+              exit 1
+          fi
+          echo "[+] 成功确认 flask.h 已就绪: ${FLASK_TARGET}"
+          
+          echo "========================================"
+          echo "6. 开启全核并发编译"
+          echo "========================================"
+          
           make "${MAKE_ARGS[@]}" -j"$(nproc)"
+          
       # 5. 打包 AnyKernel3
       - name: Pack with AnyKernel3
         shell: bash
