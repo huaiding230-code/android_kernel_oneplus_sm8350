@@ -211,18 +211,43 @@ jobs:
             "${OUT_DIR}/.config" || true
 
 
+          # echo "========================================"
+          # echo "5. Kbuild 准备"
+          # echo "========================================"
+          
+          # make "${MAKE_ARGS[@]}" -j1 prepare
+          # make "${MAKE_ARGS[@]}" -j1 scripts
+          
+          # echo "========================================"
+          # echo "6. 开启全核并发编译"
+          # echo "========================================"
+          
+          # make "${MAKE_ARGS[@]}" -j"$(nproc)"
+
           echo "========================================"
-          echo "5. Kbuild 准备"
+          echo "5. Kbuild 准备与生成 SELinux 头文件"
           echo "========================================"
           
+          # 生成基础配置、脚本和 SELinux 自动生成头文件
           make "${MAKE_ARGS[@]}" -j1 prepare
           make "${MAKE_ARGS[@]}" -j1 scripts
+          make "${MAKE_ARGS[@]}" -j1 security/selinux/
+          
+          # 确认 flask.h 已生成
+          if [ ! -f "${OUT_DIR}/security/selinux/flask.h" ]; then
+              echo "ERROR: flask.h 未生成"
+              find "${OUT_DIR}" -name "flask.h" -print || true
+              exit 1
+          fi
+          
+          echo "[+] flask.h 已生成"
           
           echo "========================================"
-          echo "6. 开启全核并发编译"
+          echo "6. 开始并行编译"
           echo "========================================"
           
           make "${MAKE_ARGS[@]}" -j"$(nproc)"
+
 
           
       # 5. 打包 AnyKernel3
