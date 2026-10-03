@@ -172,6 +172,8 @@ jobs:
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SECURITY_PATH
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SECURITYFS
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_AUDIT
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_INET
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_NETFILTER
           fi
 
           echo "========================================"
