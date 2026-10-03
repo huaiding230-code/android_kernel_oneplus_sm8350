@@ -10,6 +10,7 @@
 #include <linux/of_gpio.h>
 #include <linux/pwm.h>
 #include <video/mipi_display.h>
+#include <linux/notifier.h>
 
 #include "dsi_panel.h"
 #include "dsi_ctrl_hw.h"
@@ -43,7 +44,7 @@ int nolp_state = 0;
 #include <linux/msm_drm_notify.h>
 #include <drm/drm_panel.h>
 //#endif /*OPLUS_FEATURE_TP_BASIC*/
-
+extern struct blocking_notifier_head *tp_gesture_enable_notifier;
 /**
  * topology is currently defined by a set of following 3 values:
  * 1. num of layer mixers
