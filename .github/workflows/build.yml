@@ -67,8 +67,13 @@ jobs:
           if ! grep -q "susfs.o" fs/Makefile; then
             echo "obj-\$(CONFIG_KSU_SUSFS) += susfs.o" >> fs/Makefile
           fi
+          # 4. 插入到 fs/Kconfig 的 endmenu 上方（保证在作用域内）
           if ! grep -q "CONFIG_KSU_SUSFS" fs/Kconfig; then
-            echo -e '\nconfig KSU_SUSFS\n\tbool "SUSFS support"\n\tdefault y\n' >> fs/Kconfig
+            sed -i '/^endmenu/i \
+            config KSU_SUSFS\
+            \tbool "SUSFS support"\
+            \tdefault y\
+            ' fs/Kconfig
           fi
           
       # 4. 构建集成内核
