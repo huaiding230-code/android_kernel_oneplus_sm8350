@@ -54,21 +54,13 @@ jobs:
           echo "========================================"
           echo "4. 从 susfs4ksu 注入 SUSFS 模块与 5.4 Patch"
           echo "========================================"
-          # 1. 精确复制所有 C 源码 (susfs.c, sus_su.c 等)
-          if [ -d "/tmp/susfs4ksu/kernel_patches/fs" ]; then
-            cp /tmp/susfs4ksu/kernel_patches/fs/*.c fs/
-            echo "[+] 成功复制 kernel_patches/fs/ 下的所有 .c 文件到 fs/"
-          else
-            echo "[-] 错误: 未找到 /tmp/susfs4ksu/kernel_patches/fs 目录" && exit 1
-          fi
+          # 1. 检索并复制所有 SUSFS C 源码到 fs/
+          find /tmp/susfs4ksu -name "*.c" -exec cp -f {} fs/ \;
+          echo "[+] 成功复制所有 SUSFS .c 源码到 fs/"
 
-          # 2. 精确复制所有头文件 (susfs.h, sus_su.h, susfs_def.h)
-          if [ -d "/tmp/susfs4ksu/kernel_patches/include/linux" ]; then
-            cp /tmp/susfs4ksu/kernel_patches/include/linux/*.h include/linux/
-            echo "[+] 成功复制 include/linux/ 下的所有头文件"
-          else
-            find /tmp/susfs4ksu -name "*.h" -exec cp {} include/linux/ \;
-          fi
+          # 2. 检索并复制所有 SUSFS 头文件 (susfs.h, sus_su.h, susfs_def.h 等) 到 include/linux/
+          find /tmp/susfs4ksu -name "*.h" -exec cp -f {} include/linux/ \;
+          echo "[+] 成功复制所有 SUSFS .h 头文件到 include/linux/"
 
           # 3. 挂载所有模块编译目标
           if ! grep -q "susfs.o" fs/Makefile; then
