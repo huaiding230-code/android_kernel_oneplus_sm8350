@@ -180,6 +180,14 @@ jobs:
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_BLK_INLINE_ENCRYPTION_FALLBACK
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_CRYPTO_DEV_QCOM_HWKM
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_CRYPTO_DEV_QCOM_ICE
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_FEATURE_ADBROOT
+
+            # 2. 补齐高通/一加 OEM 驱动依赖
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_QCOM_SMEM
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_OPLUS_FEATURE_PROJECT_INFO
+
+            # 3. 强制内置 Ext4 文件系统
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_EXT4_FS
           fi
 
           echo "========================================"
