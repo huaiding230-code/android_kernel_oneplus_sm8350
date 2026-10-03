@@ -7,8 +7,15 @@
 #include <trace/events/sched.h>
 #include <linux/tick.h>
 
-#include "../sched.h"
 #include "qc_vas.h"
+
+#ifndef NOHZ_KICK_MASK
+#define NOHZ_KICK_MASK (0x1 | 0x2)
+#endif
+
+#ifndef nohz_flags
+#define nohz_flags(cpu) (&cpu_rq(cpu)->nohz_flags)
+#endif
 
 #ifdef CONFIG_SCHED_WALT
 /* 1ms default for 20ms window size scaled to 1024 */
