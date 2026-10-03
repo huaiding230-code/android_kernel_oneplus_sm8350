@@ -21,6 +21,10 @@ extern void oplus_press_cali_data_clean(void);
 extern int pad_als_data_init(void);
 extern void pad_als_data_clean(void);
 
+/* 弱符号打桩：避免因高通 SMEM / Project 驱动未开启导致链接中断 */
+void * __attribute__((weak)) qcom_smem_get(unsigned host, unsigned item, size_t *size) { return NULL; }
+int __attribute__((weak)) get_project(void) { return 0; }
+
 struct sensor_info * g_chip = NULL;
 struct sensor_info_old * g_chip_old = NULL;
 
