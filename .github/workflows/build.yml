@@ -157,7 +157,7 @@ jobs:
           make "${MAKE_ARGS[@]}" olddefconfig
 
           # 在 Actions 日志中校验 KSU / SUSFS 是否成功开启
-          grep -E '^CONFIG_KSU=|^CONFIG_KSU_SUSFS=' "${OUT_DIR}/.config" || true
+          grep -E '^CONFIG_KSU(=|_)' "${OUT_DIR}/.config" || true
 
           echo "========================================"
           echo "5. Kbuild 准备"
