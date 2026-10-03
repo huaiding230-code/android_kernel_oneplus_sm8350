@@ -176,15 +176,28 @@ jobs:
           grep -q "CONFIG_RPS=y" "${OUT_DIR}/.config" || { echo "ERROR: CONFIG_RPS 未启用！"; exit 1; }
           grep -q "CONFIG_KSU_SUSFS=y" "${OUT_DIR}/.config" || { echo "ERROR: CONFIG_KSU_SUSFS 未启用！"; exit 1; }
 
-          # 第 1 步：单线程完整生成所有系统基础头文件与架构依赖
+          echo "========================================"
+          echo "5. 标准 Kbuild 阶段构建"
+          echo "========================================"
+          # 1. 清理 out 目录下可能残留的中间头文件
+          rm -f "${OUT_DIR}/security/selinux/flask.h" "${OUT_DIR}/security/selinux/av_permissions.h"
+    
+          # 2. 标准准备阶段
           make "${MAKE_ARGS[@]}" -j1 prepare
-
-          # 第 2 步：单线程单独生成 SELinux 动态头文件（保底）
+          make "${MAKE_ARGS[@]}" -j1 scripts
+    
+          # 3. 显式构建 SELinux 目录，让内核自动编译 genheaders 并生成 flask.h
           make "${MAKE_ARGS[@]}" -j1 security/selinux/
-
-          # 第 3 步：所有动态头文件全部就绪，全核满载极速编译
+    
+          # 4. 强校验：确保 flask.h 确实生成在指定 out 目录中
+          if [ ! -f "${OUT_DIR}/security/selinux/flask.h" ]; then
+              echo "[-] 致命错误: SELinux 头文件 flask.h 未能在 out 目录生成！"
+              exit 1
+          fi
+          echo "[+] 成功确认 flask.h 已就绪: ${OUT_DIR}/security/selinux/flask.h"
+    
+          # 5. 头文件准备完毕，开启全核满载编译
           make "${MAKE_ARGS[@]}" -j"$(nproc)"
-          
       # 5. 打包 AnyKernel3
       - name: Pack with AnyKernel3
         shell: bash
