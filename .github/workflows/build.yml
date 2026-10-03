@@ -80,21 +80,57 @@ jobs:
           OUT_DIR="${GITHUB_WORKSPACE}/out"
           rm -rf "${OUT_DIR}"
           mkdir -p "${OUT_DIR}"
+       
           echo "========================================"
-          echo "1. 精准解锁 Kconfig 隐式配置限制"
+          echo "1. 动态匹配一加9 (lemonadep) 配置文件路径"
           echo "========================================"
-          if [ -f "net/core/Kconfig" ]; then
-            sed -i 's/^config RPS$/config RPS\n\tprompt "Receive Packet Steering"/g' net/core/Kconfig
-          fi
-          echo "========================================"
-          echo "2. 动态匹配一加9 (lemonadep) 配置文件"
-          echo "========================================"
-          DEFCONFIG_TARGET=$(find arch/arm64/configs/ -type f \( -name "*lemonadep*" -o -name "*lahaina*" -o -name "*blu_spark*" \) | head -n 1 | sed 's#arch/arm64/configs/##')
-          if [ -z "${DEFCONFIG_TARGET}" ]; then
+          # 先获取完整文件路径存入 DEFCONFIG_FILE
+          DEFCONFIG_FILE=$(find arch/arm64/configs/ -type f \( -name "*lemonadep*" -o -name "*lahaina*" -o -name "*blu_spark*" \) | head -n 1)
+          if [ -z "${DEFCONFIG_FILE}" ]; then
             echo "ERROR: 未在 arch/arm64/configs/ 中找到配置文件！"
             exit 1
           fi
-          echo "匹配配置文件: ${DEFCONFIG_TARGET}"
+          # 从完整路径中提取目标名称存入 DEFCONFIG_TARGET
+          DEFCONFIG_TARGET=$(echo "${DEFCONFIG_FILE}" | sed 's#arch/arm64/configs/##')
+          echo "匹配到的配置文件路径: ${DEFCONFIG_FILE}"
+          echo "匹配配置文件名称: ${DEFCONFIG_TARGET}"
+
+          echo "========================================"
+          echo "2. 注入 SukiSU/SUSFS 及其核心依赖 Config 到 defconfig"
+          echo "========================================"
+          # 必须先追加到源 defconfig 文件，然后再执行 make
+          cat << 'EOF' >> "${DEFCONFIG_FILE}"
+
+          # SukiSU / SUSFS / Security Configurations
+          CONFIG_NET=y
+          CONFIG_RPS=y
+          CONFIG_KSU=y
+          CONFIG_KSU_SUSFS=y
+          CONFIG_KSU_SUSFS_SUS_PATH=y
+          CONFIG_KSU_SUSFS_SUS_MOUNT=y
+          CONFIG_KSU_SUSFS_SUS_KSTAT=y
+          CONFIG_KSU_SUSFS_TRY_UMOUNT=y
+          CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=y
+          CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y
+          CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT=y
+          CONFIG_KSU_SUSFS_SPOOF_UNAME=y
+          CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y
+          CONFIG_KSU_SUSFS_OPEN_REDIRECT=y
+          CONFIG_KSU_SPOOF_CPU=y
+          CONFIG_KSU_SUCOMPAT=y
+          CONFIG_KSU_SULOG=y
+          CONFIG_SECCOMP=y
+          CONFIG_SECCOMP_FILTER=y
+          CONFIG_SECURITY=y
+          CONFIG_SECURITY_SELINUX=y
+          CONFIG_SECURITYFS=y
+          # CONFIG_IOMMU_DEBUG is not set
+          # CONFIG_IOMMU_DEBUGFS is not set
+          # CONFIG_MEM_SHARE_QMI_SERVICE is not set
+          # 强制将一加触控驱动编入内核主体，彻底规避 modpost undefined 报错
+          CONFIG_TOUCHSCREEN_OPLUS_TP_V2=y
+          EOF
+
           MAKE_ARGS=(
             ARCH=arm64
             LLVM=1
@@ -105,108 +141,31 @@ jobs:
             CROSS_COMPILE_ARM32=arm-linux-gnueabi-
             O="${OUT_DIR}"
           )
-          rm -rf "${OUT_DIR}"
+
+          echo "========================================"
+          echo "3. 生成包含注入 Config 的最终 .config"
+          echo "========================================"
           make "${MAKE_ARGS[@]}" "${DEFCONFIG_TARGET}"
-          echo "========================================"
-          echo "3. 注入 SukiSU/SUSFS 及其核心依赖 Config"
-          echo "========================================"
-          CONFIG_TOOL="scripts/config"
-          if [ -f "${CONFIG_TOOL}" ]; then
-            chmod +x "${CONFIG_TOOL}"
-          
-            # SukiSU Ultra & SUSFS 核心开关
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_NET
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_RPS
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_SUS_PATH
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_SUS_MOUNT
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_SUS_KSTAT
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_TRY_UMOUNT
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_SPOOF_UNAME
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_OPEN_REDIRECT
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SPOOF_CPU
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUCOMPAT
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SULOG
-            
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KEYS
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_ASYMMETRIC_KEY_TYPE
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_ASYMMETRIC_PUBLIC_KEY_SUBTYPE
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_X509_CERTIFICATE_PARSER
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_PKCS7_MESSAGE_PARSER
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SECCOMP
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SECCOMP_FILTER
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_NO_HZ
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_NO_HZ_COMMON
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_NO_HZ_IDLE
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_ENERGY_MODEL
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --disable CONFIG_IOMMU_DEBUG
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_I2C
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_MEDIA_SUPPORT
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_MEDIA_CAMERA_SUPPORT
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_MEDIA_CONTROLLER
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_VIDEO_DEV
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_VIDEO_V4L2
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SND
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SND_JACK
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SND_JACK_INPUT_DEV
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_INPUT
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_INPUT_EVDEV
-            # # 强制开启 SELinux 依赖，确保 security/selinux/ 不会被 Kbuild 跳过
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SECURITY
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SECURITY_NETWORK
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SECURITY_SELINUX
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SECURITY_PATH
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SECURITYFS
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_AUDIT
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_INET
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_NETFILTER
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_CPU_FREQ
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_PERF_EVENTS
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_BLK_INLINE_ENCRYPTION
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_BLK_INLINE_ENCRYPTION_FALLBACK
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_CRYPTO_DEV_QCOM_HWKM
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_CRYPTO_DEV_QCOM_ICE
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_FEATURE_ADBROOT
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_HWSPINLOCK
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_HWSPINLOCK_QCOM
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_THERMAL
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_THERMAL_OF
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_THERMAL_GOV_STEP_WISE
-            # # 2. 补齐高通/一加 OEM 驱动依赖
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_QCOM_SMEM
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_OPLUS_FEATURE_PROJECT_INFO
-            # # 3. 强制内置 Ext4 文件系统
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_EXT4_FS
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --disable CONFIG_IOMMU_DEBUG
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --disable CONFIG_IOMMU_DEBUGFS
-            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --disable CONFIG_MEM_SHARE_QMI_SERVICE
-          fi
+
           echo "========================================"
           echo "4. 执行 olddefconfig 与核心配置强校验"
           echo "========================================"
-          
-          # 执行 olddefconfig 刷新全局配置依赖
           make "${MAKE_ARGS[@]}" olddefconfig
+
+          # 在 Actions 日志中校验 KSU / SUSFS 是否成功开启
           grep -E '^CONFIG_KSU=|^CONFIG_KSU_SUSFS=' "${OUT_DIR}/.config" || true
-          grep -E '^CONFIG_KSU|^CONFIG_KPM' \
-            "${OUT_DIR}/.config" || true
+
           echo "========================================"
           echo "5. Kbuild 准备"
           echo "========================================"
-          
           make "${MAKE_ARGS[@]}" -j1 prepare
           make "${MAKE_ARGS[@]}" -j1 scripts
           
           echo "========================================"
           echo "6. 开启全核并发编译"
           echo "========================================"
-          
           make "${MAKE_ARGS[@]}" -j"$(nproc)"
+          
       # 5. 打包 AnyKernel3
       - name: Pack with AnyKernel3
         shell: bash
