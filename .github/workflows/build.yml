@@ -54,6 +54,7 @@ jobs:
           echo "========================================"
           echo "4. 从 susfs4ksu 注入 SUSFS 模块与 5.4 Patch"
           echo "========================================"
+          # 1. 精确复制所有 C 源码 (susfs.c, sus_su.c 等)
           if [ -d "/tmp/susfs4ksu/kernel_patches/fs" ]; then
             cp /tmp/susfs4ksu/kernel_patches/fs/*.c fs/
             echo "[+] 成功复制 kernel_patches/fs/ 下的所有 .c 文件到 fs/"
@@ -61,9 +62,15 @@ jobs:
             echo "[-] 错误: 未找到 /tmp/susfs4ksu/kernel_patches/fs 目录" && exit 1
           fi
 
-          find /tmp/susfs4ksu -name "susfs*.h" -exec cp {} include/linux/ \;
-          echo "[+] 成功复制 susfs 头文件到 include/linux/"
+          # 2. 精确复制所有头文件 (susfs.h, sus_su.h, susfs_def.h)
+          if [ -d "/tmp/susfs4ksu/kernel_patches/include/linux" ]; then
+            cp /tmp/susfs4ksu/kernel_patches/include/linux/*.h include/linux/
+            echo "[+] 成功复制 include/linux/ 下的所有头文件"
+          else
+            find /tmp/susfs4ksu -name "*.h" -exec cp {} include/linux/ \;
+          fi
 
+          # 3. 挂载所有模块编译目标
           if ! grep -q "susfs.o" fs/Makefile; then
             echo "obj-\$(CONFIG_KSU_SUSFS) += susfs.o" >> fs/Makefile
           fi
@@ -71,6 +78,7 @@ jobs:
             echo "obj-\$(CONFIG_KSU_SUSFS) += sus_su.o" >> fs/Makefile
           fi
 
+          # 4. 挂载 Kconfig 配置
           if ! grep -q "CONFIG_KSU_SUSFS" fs/Kconfig; then
             echo -e '\nconfig KSU_SUSFS\n\tbool "SUSFS support"\n\tdefault y\n' >> fs/Kconfig
           fi
