@@ -7,7 +7,6 @@
  * Based on code from fs/super.c, copyright Linus Torvalds and others.
  * Heavily rewritten.
  */
-#include <linux/susfs_def.h>
 #include <linux/syscalls.h>
 #include <linux/export.h>
 #include <linux/capability.h>
@@ -30,6 +29,10 @@
 #include <uapi/linux/mount.h>
 #include <linux/fs_context.h>
 #include <linux/shmem_fs.h>
+#include <linux/susfs_def.h>
+#if defined(CONFIG_KSU_SUSFS)
+#include <linux/susfs.h>
+#endif
 
 #include "pnode.h"
 #include "internal.h"
