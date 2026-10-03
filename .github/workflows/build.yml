@@ -35,22 +35,23 @@ jobs:
           cd kernel_source
 
           echo "========================================"
-          echo "0. 彻底剥离已提交的 SuSFS/KSU 修改（纯净版编译）"
+          echo "0. 还原源码，修复被损坏的头文件 (mount.h 等)"
           echo "========================================"
-          # 1. 还原本地未提交文件
+          # 彻底还原所有被 sed 损坏的 C 源码和头文件
           git reset --hard HEAD
           git clean -fd
-          
-          # 2. 物理删除 KSU 和 SuSFS 的独立文件/目录
-          rm -rf drivers/kernelsu
-          rm -f fs/susfs.c include/linux/susfs*.h include/linux/sus_su.h
-          
-          # 3. 动态从 fs/ 和 include/ 的所有源码文件中抹除 susfs / kernelsu 引用
-          find fs/ -type f -exec sed -i -e '/susfs/d' -e '/SUSFS/d' {} +
-          find include/ -type f -exec sed -i -e '/susfs/d' -e '/SUSFS/d' {} +
-          find drivers/ -type f \( -name "Makefile" -o -name "Kconfig" \) -exec sed -i '/kernelsu/d' {} +
-          sed -i '/kernelsu/d' Makefile 2>/dev/null || true
-          
+  
+          # 仅当目录/文件缺失时，清理 Makefile 和 Kconfig 中对应的编译指令
+          if [ ! -d "drivers/kernelsu" ]; then
+            sed -i '/kernelsu/d' drivers/Makefile 2>/dev/null || true
+            sed -i '/kernelsu/d' drivers/Kconfig 2>/dev/null || true
+            sed -i '/kernelsu/d' Makefile 2>/dev/null || true
+          fi
+  
+          if [ ! -f "fs/susfs.c" ]; then
+            sed -i '/susfs/d' fs/Makefile 2>/dev/null || true
+            sed -i '/susfs/d' fs/Kconfig 2>/dev/null || true
+          fi
           CLANG_DIR="${GITHUB_WORKSPACE}/toolchain/proton-clang"
           export PATH="${CLANG_DIR}/bin:${PATH}"
           OUT_DIR="${GITHUB_WORKSPACE}/out"
@@ -71,6 +72,11 @@ jobs:
           echo "1. 配置 Defconfig"
           echo "========================================"
           make "${MAKE_ARGS[@]}" "${DEFCONFIG}"
+
+          # 显式关闭 KSU 和 SuSFS 开关，确保 C 代码里的 #ifdef 条件完全无效（即不编译任何 KSU/SuSFS 代码）
+          ./scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_KERNELSU 2>/dev/null || true
+          ./scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_SUSFS 2>/dev/null || true
+        
           echo "========================================"
           echo "2. 执行内核编译 (纯净版)"
           echo "========================================"
