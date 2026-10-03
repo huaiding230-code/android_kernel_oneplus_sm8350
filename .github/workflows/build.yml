@@ -26,6 +26,13 @@ jobs:
           mkdir -p toolchain
           git clone --depth=1 https://github.com/huaiding230-code/proton-clang.git toolchain/proton-clang
           echo "${GITHUB_WORKSPACE}/toolchain/proton-clang/bin" >> $GITHUB_PATH
+
+      - name: Clean Kernel Repository
+        run: |
+          cd kernel_source
+          git reset --hard HEAD
+          git clean -fd
+        
       - name: Build Pure Kernel
         run: |
           set -euo pipefail
@@ -53,11 +60,6 @@ jobs:
           echo "========================================"
           echo "2. 执行内核编译 (纯净版)"
           echo "========================================"
-      - name: Clean git repository
-        run: |
-          git reset --hard HEAD
-          git clean -fd
-          
           make "${MAKE_ARGS[@]}" -j$(nproc)
       - name: Pack with AnyKernel3
         shell: bash
