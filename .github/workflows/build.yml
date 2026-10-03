@@ -62,6 +62,7 @@ jobs:
           fi
           find /tmp/susfs4ksu -name "susfs*.h" -exec cp {} include/linux/ \;
           echo "[+] 成功复制 susfs 头文件到 include/linux/"
+          
           # 仅挂载 susfs.o（千万不要挂载 sus_su.o）
           if ! grep -q "susfs.o" fs/Makefile; then
             echo "obj-\$(CONFIG_KSU_SUSFS) += susfs.o" >> fs/Makefile
