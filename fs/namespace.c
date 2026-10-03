@@ -33,7 +33,9 @@
 
 #include "pnode.h"
 #include "internal.h"
-#include "../selinux/selinux.h"
+#if defined(CONFIG_KSU) || defined(CONFIG_KSU_SUSFS)
+#include "../drivers/kernelsu/selinux/selinux.h"
+#endif
 
 /* Maximum number of mounts in a mount namespace */
 unsigned int sysctl_mount_max __read_mostly = 100000;
