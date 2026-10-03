@@ -167,11 +167,11 @@ jobs:
             # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_INPUT
             # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_INPUT_EVDEV
             # # 强制开启 SELinux 依赖，确保 security/selinux/ 不会被 Kbuild 跳过
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SECURITY
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SECURITY
             # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SECURITY_NETWORK
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SECURITY_SELINUX
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SECURITY_SELINUX
             # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SECURITY_PATH
-            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SECURITYFS
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SECURITYFS
             # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_AUDIT
             # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_INET
             # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_NETFILTER
