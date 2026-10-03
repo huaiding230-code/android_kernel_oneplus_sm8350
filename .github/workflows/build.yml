@@ -1,4 +1,4 @@
-name: Phase 1 - Pure LineageOS Kernel Build (Baseline Test)
+name: Phase 2 - Integrated SukiSU Ultra + SUSFS Kernel Build
 
 on:
   workflow_dispatch:
@@ -13,90 +13,209 @@ jobs:
           root-reserve-mb: 8192
           temp-reserve-mb: 2048
 
+      # 1. 拉取 LineageOS 内核源码
       - name: Checkout Kernel Source
         uses: actions/checkout@v4
         with:
-          # 请确保此处填写的分支与你手机当前的 Android 版本严格对应 (如 lineage-21.0)
           ref: lineage-23.2
           path: kernel_source
           fetch-depth: 1
 
+      # 2. 拉取 Proton-Clang 工具链
       - name: Setup Proton-Clang Toolchain
         run: |
           mkdir -p toolchain
           git clone --depth=1 https://github.com/huaiding230-code/proton-clang.git toolchain/proton-clang
           echo "${GITHUB_WORKSPACE}/toolchain/proton-clang/bin" >> $GITHUB_PATH
-
-      - name: Build Pure Kernel
+          
+      - name: Integrate SukiSU Ultra + SUSFS
         run: |
           set -euo pipefail
           cd kernel_source
-
+          
           echo "========================================"
-          echo "0. 还原源码，修复被损坏的头文件 (mount.h 等)"
+          echo "1. 克隆你个人仓库的 SukiSU Ultra 与 susfs4ksu"
           echo "========================================"
-          # 彻底还原所有被 sed 损坏的 C 源码和头文件
-          git reset --hard HEAD
-          git clean -fd
-
-          # 补齐空的垫底头文件，防止硬编码的 #include 找不到文件
-          mkdir -p include/linux
-          touch include/linux/susfs_def.h include/linux/susfs.h include/linux/sus_su.h
-  
-          # 动态给 fs/namespace.c 中未受保护的 include 加上 #ifdef CONFIG_SUSFS 防护
-          sed -i 's/#include <linux\/susfs_def.h>/#ifdef CONFIG_SUSFS\n#include <linux\/susfs_def.h>\n#endif/' fs/namespace.c 2>/dev/null || true
-  
-          # 仅当目录/文件缺失时，清理 Makefile 和 Kconfig 中对应的编译指令
-          if [ ! -d "drivers/kernelsu" ]; then
-            sed -i '/kernelsu/d' drivers/Makefile 2>/dev/null || true
-            sed -i '/kernelsu/d' drivers/Kconfig 2>/dev/null || true
-            sed -i '/kernelsu/d' Makefile 2>/dev/null || true
+          
+          rm -rf /tmp/SukiSU-Ultra /tmp/susfs4ksu
+          git clone --depth=1 https://github.com/huaiding230-code/SukiSU-Ultra.git /tmp/SukiSU-Ultra
+          git clone --depth=1 https://github.com/huaiding230-code/susfs4ksu.git /tmp/susfs4ksu
+          
+          echo "========================================"
+          echo "2. 清理 dts 设备树冲突节点"
+          echo "========================================"
+          git checkout -- arch/arm64/boot/dts/ || true
+          
+          echo "========================================"
+          echo "3. 执行你魔改过的 setup.sh (全权交由你的库处理)"
+          echo "========================================"
+          bash /tmp/SukiSU-Ultra/kernel/setup.sh
+          
+          echo "========================================"
+          echo "4. 从 susfs4ksu 注入 SUSFS 模块与 5.4 Patch"
+          echo "========================================"
+          if [ -f "/tmp/susfs4ksu/kernel_patches/fs/susfs.c" ]; then
+            cp /tmp/susfs4ksu/kernel_patches/fs/susfs.c fs/
+            echo "[+] 成功复制 susfs.c 到 fs/"
+          else
+            echo "[-] 致命错误: 未找到 susfs.c" && exit 1
           fi
-  
-          if [ ! -f "fs/susfs.c" ]; then
-            sed -i '/susfs/d' fs/Makefile 2>/dev/null || true
-            sed -i '/susfs/d' fs/Kconfig 2>/dev/null || true
+          find /tmp/susfs4ksu -name "susfs*.h" -exec cp {} include/linux/ \;
+          echo "[+] 成功复制 susfs 头文件到 include/linux/"
+          # 仅挂载 susfs.o（千万不要挂载 sus_su.o）
+          if ! grep -q "susfs.o" fs/Makefile; then
+            echo "obj-\$(CONFIG_KSU_SUSFS) += susfs.o" >> fs/Makefile
           fi
+          if ! grep -q "CONFIG_KSU_SUSFS" fs/Kconfig; then
+            echo -e '\nconfig KSU_SUSFS\n\tbool "SUSFS support"\n\tdefault y\n' >> fs/Kconfig
+          fi
+          
+      # 4. 构建集成内核
+      - name: Build Integrated Kernel
+        run: |
+          set -euo pipefail
+          cd kernel_source
           CLANG_DIR="${GITHUB_WORKSPACE}/toolchain/proton-clang"
           export PATH="${CLANG_DIR}/bin:${PATH}"
           OUT_DIR="${GITHUB_WORKSPACE}/out"
+          rm -rf "${OUT_DIR}"
           mkdir -p "${OUT_DIR}"
-          # 定位一加 9 在 LineageOS 源码中的默认配置文件
-          DEFCONFIG="vendor/lahaina-qgki_defconfig"
-          # 移除了所有 KCFLAGS 屏蔽参数，让真正的报错显露出来
+          echo "========================================"
+          echo "1. 精准解锁 Kconfig 隐式配置限制"
+          echo "========================================"
+          if [ -f "net/core/Kconfig" ]; then
+            sed -i 's/^config RPS$/config RPS\n\tprompt "Receive Packet Steering"/g' net/core/Kconfig
+          fi
+          echo "========================================"
+          echo "2. 动态匹配一加9 (lemonadep) 配置文件"
+          echo "========================================"
+          DEFCONFIG_TARGET=$(find arch/arm64/configs/ -type f \( -name "*lemonadep*" -o -name "*lahaina*" -o -name "*blu_spark*" \) | head -n 1 | sed 's#arch/arm64/configs/##')
+          if [ -z "${DEFCONFIG_TARGET}" ]; then
+            echo "ERROR: 未在 arch/arm64/configs/ 中找到配置文件！"
+            exit 1
+          fi
+          echo "匹配配置文件: ${DEFCONFIG_TARGET}"
           MAKE_ARGS=(
             ARCH=arm64
             LLVM=1
             LLVM_IAS=1
             CC=clang
+            KCFLAGS="-Wno-unused-function"
             CROSS_COMPILE=aarch64-linux-gnu-
             CROSS_COMPILE_ARM32=arm-linux-gnueabi-
             O="${OUT_DIR}"
           )
+          rm -rf "${OUT_DIR}"
+          make "${MAKE_ARGS[@]}" "${DEFCONFIG_TARGET}"
           echo "========================================"
-          echo "1. 配置 Defconfig"
+          echo "3. 注入 SukiSU/SUSFS 及其核心依赖 Config"
           echo "========================================"
-          make "${MAKE_ARGS[@]}" "${DEFCONFIG}"
-
-          # 显式关闭 KSU 和 SuSFS 开关，确保 C 代码里的 #ifdef 条件完全无效（即不编译任何 KSU/SuSFS 代码）
-          ./scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_KERNELSU 2>/dev/null || true
-          ./scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_SUSFS 2>/dev/null || true
-        
+          CONFIG_TOOL="scripts/config"
+          if [ -f "${CONFIG_TOOL}" ]; then
+            chmod +x "${CONFIG_TOOL}"
+          
+            # SukiSU Ultra & SUSFS 核心开关
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_NET
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_RPS
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_SUS_PATH
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_SUS_MOUNT
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_SUS_KSTAT
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_TRY_UMOUNT
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_SPOOF_UNAME
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUSFS_OPEN_REDIRECT
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SPOOF_CPU
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SUCOMPAT
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_SULOG
+            
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KEYS
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_ASYMMETRIC_KEY_TYPE
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_ASYMMETRIC_PUBLIC_KEY_SUBTYPE
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_X509_CERTIFICATE_PARSER
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_PKCS7_MESSAGE_PARSER
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SECCOMP
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SECCOMP_FILTER
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_NO_HZ
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_NO_HZ_COMMON
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_NO_HZ_IDLE
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_ENERGY_MODEL
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --disable CONFIG_IOMMU_DEBUG
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_I2C
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_MEDIA_SUPPORT
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_MEDIA_CAMERA_SUPPORT
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_MEDIA_CONTROLLER
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_VIDEO_DEV
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_VIDEO_V4L2
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SND
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SND_JACK
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SND_JACK_INPUT_DEV
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_INPUT
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_INPUT_EVDEV
+            # # 强制开启 SELinux 依赖，确保 security/selinux/ 不会被 Kbuild 跳过
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SECURITY
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SECURITY_NETWORK
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SECURITY_SELINUX
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SECURITY_PATH
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_SECURITYFS
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_AUDIT
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_INET
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_NETFILTER
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_CPU_FREQ
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_PERF_EVENTS
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_BLK_INLINE_ENCRYPTION
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_BLK_INLINE_ENCRYPTION_FALLBACK
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_CRYPTO_DEV_QCOM_HWKM
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_CRYPTO_DEV_QCOM_ICE
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_FEATURE_ADBROOT
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_HWSPINLOCK
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_HWSPINLOCK_QCOM
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_THERMAL
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_THERMAL_OF
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_THERMAL_GOV_STEP_WISE
+            # # 2. 补齐高通/一加 OEM 驱动依赖
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_QCOM_SMEM
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_OPLUS_FEATURE_PROJECT_INFO
+            # # 3. 强制内置 Ext4 文件系统
+            # "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_EXT4_FS
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --disable CONFIG_IOMMU_DEBUG
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --disable CONFIG_IOMMU_DEBUGFS
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --disable CONFIG_MEM_SHARE_QMI_SERVICE
+          fi
           echo "========================================"
-          echo "2. 执行内核编译 (纯净版)"
+          echo "4. 执行 olddefconfig 与核心配置强校验"
           echo "========================================"
-          make "${MAKE_ARGS[@]}" -j$(nproc)
+          
+          # 执行 olddefconfig 刷新全局配置依赖
+          make "${MAKE_ARGS[@]}" olddefconfig
+          grep -E '^CONFIG_KSU=|^CONFIG_KSU_SUSFS=' "${OUT_DIR}/.config" || true
+          grep -E '^CONFIG_KSU|^CONFIG_KPM' \
+            "${OUT_DIR}/.config" || true
+          echo "========================================"
+          echo "5. Kbuild 准备"
+          echo "========================================"
+          
+          make "${MAKE_ARGS[@]}" -j1 prepare
+          make "${MAKE_ARGS[@]}" -j1 scripts
+          
+          echo "========================================"
+          echo "6. 开启全核并发编译"
+          echo "========================================"
+          
+          make "${MAKE_ARGS[@]}" -j"$(nproc)"
+      # 5. 打包 AnyKernel3
       - name: Pack with AnyKernel3
         shell: bash
         run: |
           set -e
           cd "${GITHUB_WORKSPACE}"
-          
-          # 下载 AnyKernel3
           git clone --depth=1 https://github.com/huaiding230-code/AnyKernel3.git AnyKernel3
           cd AnyKernel3
           rm -rf .git README.md *placeholder
-          # 注入一加9的 AnyKernel3 刷机参数
           sed -i -E 's/^[[:space:]]*do\.devicecheck=.*/do.devicecheck=0/' anykernel.sh
           sed -i -E 's/^[[:space:]]*(BLOCK|block)=.*/BLOCK=\/dev\/block\/bootdevice\/by-name\/boot;/' anykernel.sh
           sed -i -E 's/^[[:space:]]*(IS_SLOT_DEVICE|is_slot_device)=.*/IS_SLOT_DEVICE=1;/' anykernel.sh
@@ -104,7 +223,10 @@ jobs:
           echo "提取内核镜像产物"
           echo "========================================"
           OUT_DIR="${GITHUB_WORKSPACE}/out"
-          
+          if [ -f "${OUT_DIR}/arch/arm64/boot/dtb" ]; then
+            cp "${OUT_DIR}/arch/arm64/boot/dtb" ./
+            echo "[+] 已提取 dtb"
+          fi
           if [ -f "${OUT_DIR}/arch/arm64/boot/Image.gz-dtb" ]; then
             cp "${OUT_DIR}/arch/arm64/boot/Image.gz-dtb" ./
             echo "[+] 已提取 Image.gz-dtb"
@@ -115,10 +237,9 @@ jobs:
             echo "[-] 致命错误：未找到支持的内核镜像文件！"
             exit 1
           fi
-          # 删除了手动 zip -r9 的命令
+      # 6. 上传 Artifact
       - name: Upload Kernel Zip Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Lineage-Pure-Kernel-Test
-          # 直接上传 AnyKernel3 目录下的所有文件，GitHub 会自动打成一个单层的 Zip 刷机包
+          name: SukiSU-SUSFS-Kernel
           path: AnyKernel3/*
