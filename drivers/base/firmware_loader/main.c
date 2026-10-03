@@ -1558,6 +1558,8 @@ static void __exit firmware_class_exit(void)
 
 int request_firmware_select(const struct firmware **fw, const char *name, struct device *device)
 {
+	if (!fw || !name)
+		return -EINVAL;
 	return request_firmware(fw, name, device);
 }
 EXPORT_SYMBOL(request_firmware_select);
