@@ -27,8 +27,6 @@ jobs:
           git clone --depth=1 https://github.com/huaiding230-code/proton-clang.git toolchain/proton-clang
           echo "${GITHUB_WORKSPACE}/toolchain/proton-clang/bin" >> $GITHUB_PATH
 
-    
-        
       - name: Build Pure Kernel
         run: |
           set -euo pipefail
@@ -40,6 +38,13 @@ jobs:
           # 彻底还原所有被 sed 损坏的 C 源码和头文件
           git reset --hard HEAD
           git clean -fd
+
+          # 补齐空的垫底头文件，防止硬编码的 #include 找不到文件
+          mkdir -p include/linux
+          touch include/linux/susfs_def.h include/linux/susfs.h include/linux/sus_su.h
+  
+          # 动态给 fs/namespace.c 中未受保护的 include 加上 #ifdef CONFIG_SUSFS 防护
+          sed -i 's/#include <linux\/susfs_def.h>/#ifdef CONFIG_SUSFS\n#include <linux\/susfs_def.h>\n#endif/' fs/namespace.c 2>/dev/null || true
   
           # 仅当目录/文件缺失时，清理 Makefile 和 Kconfig 中对应的编译指令
           if [ ! -d "drivers/kernelsu" ]; then
