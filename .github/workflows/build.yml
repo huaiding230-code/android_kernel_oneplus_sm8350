@@ -27,19 +27,30 @@ jobs:
           git clone --depth=1 https://github.com/huaiding230-code/proton-clang.git toolchain/proton-clang
           echo "${GITHUB_WORKSPACE}/toolchain/proton-clang/bin" >> $GITHUB_PATH
 
-      - name: Clean Kernel Repository
-        run: |
-          cd kernel_source
-          git reset --hard HEAD
-          git clean -fd
-          # 强行删掉 drivers/Makefile 和 drivers/Kconfig 里所有包含 kernelsu 的行
-          sed -i '/kernelsu/d' drivers/Makefile
-          sed -i '/kernelsu/d' drivers/Kconfig
+    
         
       - name: Build Pure Kernel
         run: |
           set -euo pipefail
           cd kernel_source
+
+          echo "========================================"
+          echo "0. 彻底剥离已提交的 SuSFS/KSU 修改（纯净版编译）"
+          echo "========================================"
+          # 1. 还原本地未提交文件
+          git reset --hard HEAD
+          git clean -fd
+          
+          # 2. 物理删除 KSU 和 SuSFS 的独立文件/目录
+          rm -rf drivers/kernelsu
+          rm -f fs/susfs.c include/linux/susfs*.h include/linux/sus_su.h
+          
+          # 3. 动态从 fs/ 和 include/ 的所有源码文件中抹除 susfs / kernelsu 引用
+          find fs/ -type f -exec sed -i -e '/susfs/d' -e '/SUSFS/d' {} +
+          find include/ -type f -exec sed -i -e '/susfs/d' -e '/SUSFS/d' {} +
+          find drivers/ -type f \( -name "Makefile" -o -name "Kconfig" \) -exec sed -i '/kernelsu/d' {} +
+          sed -i '/kernelsu/d' Makefile 2>/dev/null || true
+          
           CLANG_DIR="${GITHUB_WORKSPACE}/toolchain/proton-clang"
           export PATH="${CLANG_DIR}/bin:${PATH}"
           OUT_DIR="${GITHUB_WORKSPACE}/out"
