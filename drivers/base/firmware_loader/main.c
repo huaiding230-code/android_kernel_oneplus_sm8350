@@ -1556,5 +1556,11 @@ static void __exit firmware_class_exit(void)
 	unregister_sysfs_loader();
 }
 
+int request_firmware_select(const struct firmware **fw, const char *name, struct device *device)
+{
+	return request_firmware(fw, name, device);
+}
+EXPORT_SYMBOL(request_firmware_select);
+
 fs_initcall(firmware_class_init);
 module_exit(firmware_class_exit);
