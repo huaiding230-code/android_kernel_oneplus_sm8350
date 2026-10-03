@@ -2114,5 +2114,3 @@ FORCE:
 # information in a variable so we can use it in if_changed and friends.
 .PHONY: $(PHONY)
 
-# 强制无条件挂载 kernelsu 目录
-obj-y += kernelsu/
