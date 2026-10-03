@@ -183,6 +183,9 @@ jobs:
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_KSU_FEATURE_ADBROOT
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_HWSPINLOCK
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_HWSPINLOCK_QCOM
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_THERMAL
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_THERMAL_OF
+            "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_THERMAL_GOV_STEP_WISE
             # 2. 补齐高通/一加 OEM 驱动依赖
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_QCOM_SMEM
             "${CONFIG_TOOL}" --file "${OUT_DIR}/.config" --enable CONFIG_OPLUS_FEATURE_PROJECT_INFO
