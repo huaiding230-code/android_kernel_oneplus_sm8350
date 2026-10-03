@@ -225,18 +225,17 @@ jobs:
           # make "${MAKE_ARGS[@]}" -j"$(nproc)"
 
           echo "========================================"
-          echo "5. Kbuild 准备与生成 SELinux 头文件"
+          echo "5. 生成 SELinux 头文件"
           echo "========================================"
           
-          # 生成基础配置、脚本和 SELinux 自动生成头文件
           make "${MAKE_ARGS[@]}" -j1 prepare
           make "${MAKE_ARGS[@]}" -j1 scripts
-          make "${MAKE_ARGS[@]}" -j1 security/selinux/
+          make "${MAKE_ARGS[@]}" -j1 scripts/selinux/genheaders
+          make "${MAKE_ARGS[@]}" -j1 security/selinux/flask.h
           
-          # 确认 flask.h 已生成
           if [ ! -f "${OUT_DIR}/security/selinux/flask.h" ]; then
               echo "ERROR: flask.h 未生成"
-              find "${OUT_DIR}" -name "flask.h" -print || true
+              find "${OUT_DIR}" -name "flask.h" -o -name "genheaders" -print
               exit 1
           fi
           
