@@ -44,7 +44,6 @@ int nolp_state = 0;
 #include <linux/msm_drm_notify.h>
 #include <drm/drm_panel.h>
 //#endif /*OPLUS_FEATURE_TP_BASIC*/
-extern struct blocking_notifier_head *tp_gesture_enable_notifier;
 /**
  * topology is currently defined by a set of following 3 values:
  * 1. num of layer mixers
