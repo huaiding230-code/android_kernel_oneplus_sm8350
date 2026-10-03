@@ -168,7 +168,23 @@ jobs:
           echo "========================================"
           echo "6. 开启全核并发编译"
           echo "========================================"
+          
+          set +e
           make "${MAKE_ARGS[@]}" -j"$(nproc)"
+          BUILD_STATUS=$?
+          set -e
+          
+          echo "========================================"
+          echo "7. 检查 SUSFS 目标文件和符号"
+          echo "========================================"
+          
+          find "${OUT_DIR}" \( -name 'selinux.o' -o -name 'kernelsu.o' \) -print
+          
+          find "${OUT_DIR}" -name '*.o' -print0 | \
+            xargs -0 llvm-nm -A 2>/dev/null | \
+            grep 'susfs_is_current_' || true
+          
+          exit "${BUILD_STATUS}"
           
       # 5. 打包 AnyKernel3
       - name: Pack with AnyKernel3
