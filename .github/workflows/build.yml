@@ -183,7 +183,31 @@ jobs:
           echo "--- generated Kbuild command check ---"
           make "${MAKE_ARGS[@]}" -n drivers/kernelsu/kernelsu.o 2>&1 | grep -E 'selinux|kernelsu|rules|sepolicy' || true
 
-
+          echo "========================================"
+          echo "DEBUG: KernelSU parent Kbuild registration"
+          echo "========================================"
+          
+          echo "--- drivers/Makefile ---"
+          grep -n -C 5 "kernelsu" drivers/Makefile || true
+          
+          echo "--- common/drivers/Makefile ---"
+          if [ -f common/drivers/Makefile ]; then
+              grep -n -C 5 "kernelsu" common/drivers/Makefile || true
+          fi
+          
+          echo "--- drivers/Kconfig ---"
+          grep -n -C 5 "kernelsu" drivers/Kconfig || true
+          
+          echo "--- common/drivers/Kconfig ---"
+          if [ -f common/drivers/Kconfig ]; then
+              grep -n -C 5 "kernelsu" common/drivers/Kconfig || true
+          fi
+          
+          echo "--- all KernelSU parent registrations ---"
+          grep -R -n -E 'obj-[ym].*kernelsu|source.*kernelsu' \
+              drivers/Makefile drivers/Kconfig common/drivers/Makefile common/drivers/Kconfig \
+              2>/dev/null || true
+              
           echo "========================================"
           echo "5. Kbuild 准备"
           echo "========================================"
