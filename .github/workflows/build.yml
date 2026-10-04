@@ -160,6 +160,31 @@ jobs:
           grep -E '^CONFIG_KSU(=|_)' "${OUT_DIR}/.config" || true
 
           echo "========================================"
+          echo "DEBUG: KernelSU source layout"
+          echo "========================================"
+          
+          echo "--- drivers/kernelsu ---"
+          ls -ld drivers/kernelsu
+          readlink -f drivers/kernelsu || true
+          
+          echo "--- KernelSU Makefile ---"
+          ls -l drivers/kernelsu/Makefile
+          grep -n -A30 '^kernelsu-y' drivers/kernelsu/Makefile
+          
+          echo "--- SELinux source files ---"
+          find drivers/kernelsu/selinux -maxdepth 1 -type f -print | sort
+          
+          echo "--- CONFIG_KSU ---"
+          grep '^CONFIG_KSU=' "${OUT_DIR}/.config" || true
+          
+          echo "--- CONFIG_KSU_SUSFS ---"
+          grep '^CONFIG_KSU_SUSFS=' "${OUT_DIR}/.config" || true
+          
+          echo "--- generated Kbuild command check ---"
+          make "${MAKE_ARGS[@]}" -n drivers/kernelsu/kernelsu.o 2>&1 | grep -E 'selinux|kernelsu|rules|sepolicy' || true
+
+
+          echo "========================================"
           echo "5. Kbuild 准备"
           echo "========================================"
           make "${MAKE_ARGS[@]}" -j1 prepare
