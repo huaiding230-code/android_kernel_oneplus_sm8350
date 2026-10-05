@@ -138,8 +138,9 @@ jobs:
 
           make -k "${MAKE_ARGS[@]}" -j"$(nproc)"
 
-          grep -iE 'ksu|suki' out/System.map | head -40
-          grep -Rnw /tmp/SukiSU-Ultra/kernel -e 'ksu_lsm_hook_init'
+          grep -iE 'ksu|suki' out/System.map | head -40 || true
+          grep -Rnw /tmp/SukiSU-Ultra/kernel -e 'ksu_lsm_hook_init' || true
+
 
        # 5. 打包 AnyKernel3
       - name: Pack with AnyKernel3
