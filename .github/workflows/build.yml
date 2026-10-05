@@ -138,9 +138,12 @@ jobs:
 
           make -k "${MAKE_ARGS[@]}" -j"$(nproc)"
 
-          grep -iE 'ksu|suki' out/System.map | head -40 || true
+          echo "=== 查找 System.map 和 vmlinux ==="
+          find out -type f \( -name System.map -o -name vmlinux \) -print || true
+          
+          echo "=== 搜索初始化函数 ==="
           grep -Rnw /tmp/SukiSU-Ultra/kernel -e 'ksu_lsm_hook_init' || true
-
+          
 
        # 5. 打包 AnyKernel3
       - name: Pack with AnyKernel3
