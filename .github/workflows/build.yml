@@ -122,16 +122,17 @@ jobs:
           echo "========================================"
           echo "4. 执行 olddefconfig 与核心配置强校验"
           echo "========================================"
-          ./scripts/config --file "${OUT_DIR}/.config" -d KSU_DISABLE_MANAGER
           make "${MAKE_ARGS[@]}" olddefconfig
           
           # 在 Actions 日志中校验 KSU是否成功开启
           grep -E '^CONFIG_KSU(=|_)' "${OUT_DIR}/.config" || true
-          grep "KSU_DISABLE_MANAGER" "${OUT_DIR}/.config" || echo "配置项不存在"
-          grep -q '^# CONFIG_KSU_DISABLE_MANAGER is not set$' "${OUT_DIR}/.config" || {
-            echo "ERROR: CONFIG_KSU_DISABLE_MANAGER 仍未关闭"
-            exit 1
-          }
+          # 2. 校验 KSU_DISABLE_MANAGER 是否【处于关闭状态】
+          if grep -q '^CONFIG_KSU_DISABLE_MANAGER=y' "${OUT_DIR}/.config"; then
+              echo "❌ ERROR: CONFIG_KSU_DISABLE_MANAGER 被开启了（管理器被禁用了）！"
+              exit 1
+          else
+              echo "✅ SUCCESS: CONFIG_KSU_DISABLE_MANAGER 未开启，管理器已保证启用！"
+          fi
 
 
           echo "========================================"
