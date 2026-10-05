@@ -99,7 +99,6 @@ jobs:
           # CONFIG_IOMMU_DEBUG is not set
           # CONFIG_IOMMU_DEBUGFS is not set
           # CONFIG_MEM_SHARE_QMI_SERVICE is not set
-          # CONFIG_KSU_DISABLE_MANAGER is not set
           EOF
 
           MAKE_ARGS=(
