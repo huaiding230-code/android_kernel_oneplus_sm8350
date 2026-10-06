@@ -1,11 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/*
- *  linux/fs/namespace.c
+/* *  linux/fs/namespace.c
  * (C) Copyright Al Viro 2000, 2001
- *
  * Based on code from fs/super.c, copyright Linus Torvalds and others.
- * Heavily rewritten.
- */
+ * Heavily rewritten.*/
 #include <linux/syscalls.h>
 #include <linux/export.h>
 #include <linux/capability.h>
@@ -23,12 +20,12 @@
 #include <linux/proc_ns.h>
 #include <linux/magic.h>
 #include <linux/memblock.h>
-#include <linux/bootmem.h>
-#include <linux/task_work.h>
-#include <linux/sched/task.h>
 #include <uapi/linux/mount.h>
 #include <linux/fs_context.h>
 #include <linux/shmem_fs.h>
+#include <linux/bootmem.h>
+#include <linux/task_work.h>
+#include <linux/sched/task.h>
 
 #include "pnode.h"
 #include "internal.h"
