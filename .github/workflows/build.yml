@@ -27,6 +27,7 @@ jobs:
           mkdir -p toolchain
           git clone --depth=1 https://github.com/shs-sssh/proton-clang.git toolchain/proton-clang
           echo "${GITHUB_WORKSPACE}/toolchain/proton-clang/bin" >> $GITHUB_PATH
+          
       # 3. Integrate SukiSU Ultra
       - name: Integrate SukiSU Ultra
         run: |
@@ -137,7 +138,7 @@ jobs:
           OUT_DIR="${GITHUB_WORKSPACE}/out"
           rm -rf "${OUT_DIR}"
           mkdir -p "${OUT_DIR}"
-       
+
           echo "========================================"
           echo "1. 指定一加9 (lahaina-qgki) 配置文件路径"
           echo "========================================"
@@ -151,8 +152,9 @@ jobs:
           echo "指定配置文件: ${DEFCONFIG_FILE}"
           
           echo "========================================"
-          echo "2. 注入 SukiSU及其核心依赖 Config 到 defconfig"
+          echo "2. 注入 SukiSU + SUSFS Config 到 defconfig"
           echo "========================================"
+
           # 必须先追加到源 defconfig 文件，然后再执行 make
           cat << 'EOF' >> "${DEFCONFIG_FILE}"
 
@@ -163,11 +165,29 @@ jobs:
           CONFIG_KSU_SPOOF_CPU=y
           CONFIG_KSU_SUCOMPAT=y
           CONFIG_KSU_SULOG=y
+
+          # SUSFS
+          CONFIG_KSU_SUSFS=y
+          CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y
+          CONFIG_KSU_SUSFS_SUS_PATH=y
+          CONFIG_KSU_SUSFS_SUS_MOUNT=y
+          CONFIG_KSU_SUSFS_SUS_KSTAT=y
+          CONFIG_KSU_SUSFS_TRY_UMOUNT=y
+          CONFIG_KSU_SUSFS_SPOOF_UNAME=y
+          CONFIG_KSU_SUSFS_ENABLE_LOG=y
+          CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y
+          CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y
+          CONFIG_KSU_SUSFS_OPEN_REDIRECT=y
+          CONFIG_KSU_SUSFS_SUS_SU=y
+
+          # Kernel Security Dependencies
           CONFIG_SECCOMP=y
           CONFIG_SECCOMP_FILTER=y
           CONFIG_SECURITY=y
           CONFIG_SECURITY_SELINUX=y
           CONFIG_SECURITYFS=y
+
+          # Disable unnecessary debug/config options
           # CONFIG_IOMMU_DEBUG is not set
           # CONFIG_IOMMU_DEBUGFS is not set
           # CONFIG_MEM_SHARE_QMI_SERVICE is not set
@@ -194,6 +214,34 @@ jobs:
           echo "4. 执行 olddefconfig 与核心配置强校验"
           echo "========================================"
           make "${MAKE_ARGS[@]}" olddefconfig
+
+          echo "========================================"
+          echo "5. 校验 SUSFS Config"
+          echo "========================================"
+
+          grep -E '^CONFIG_KSU_SUSFS' "${OUT_DIR}/.config" || true
+
+          for CONFIG in \
+            CONFIG_KSU_SUSFS \
+            CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT \
+            CONFIG_KSU_SUSFS_SUS_PATH \
+            CONFIG_KSU_SUSFS_SUS_MOUNT \
+            CONFIG_KSU_SUSFS_SUS_KSTAT \
+            CONFIG_KSU_SUSFS_TRY_UMOUNT \
+            CONFIG_KSU_SUSFS_SPOOF_UNAME \
+            CONFIG_KSU_SUSFS_ENABLE_LOG \
+            CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS \
+            CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG \
+            CONFIG_KSU_SUSFS_OPEN_REDIRECT \
+            CONFIG_KSU_SUSFS_SUS_SU
+          do
+            if ! grep -q "^${CONFIG}=y$" "${OUT_DIR}/.config"; then
+              echo "❌ ERROR: ${CONFIG} 没有成功开启！"
+              exit 1
+            fi
+          done
+
+          echo "✅ SUCCESS: 所有要求的 SUSFS Config 均已开启！"
           
           # 在 Actions 日志中校验 KSU是否成功开启
           grep -E '^CONFIG_KSU(=|_)' "${OUT_DIR}/.config" || true
@@ -204,7 +252,6 @@ jobs:
           else
               echo "✅ SUCCESS: CONFIG_KSU_DISABLE_MANAGER 未开启，管理器已保证启用！"
           fi
-
 
           echo "========================================"
           echo "5. Kbuild 准备"
