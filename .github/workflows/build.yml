@@ -163,8 +163,6 @@ jobs:
           CONFIG_KSU_SPOOF_CPU=y
           CONFIG_KSU_SUCOMPAT=y
           CONFIG_KSU_SULOG=y
-          # 显式关闭 SUSFS 主开关（禁用后不会再包含 linux/susfs.h 头文件）
-          # CONFIG_KSU_SUSFS is not set
           CONFIG_SECCOMP=y
           CONFIG_SECCOMP_FILTER=y
           CONFIG_SECURITY=y
