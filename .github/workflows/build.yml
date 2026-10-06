@@ -42,17 +42,62 @@ jobs:
           echo "Cleaning DTS changes"
           echo "========================================"
           git checkout -- arch/arm64/boot/dts/ || true
-          bash /tmp/SukiSU-Ultra/kernel/setup.sh
+          sh /tmp/SukiSU-Ultra/kernel/setup.sh
+          
           ls -ld drivers/kernelsu
           readlink -f drivers/kernelsu
           grep -n -C 3 "kernelsu" drivers/Makefile || true
           grep -n -C 3 "kernelsu" drivers/Kconfig || true
-      
+
           echo "========================================"
           echo "SukiSU Makefile"
           echo "========================================"
           grep -nE '^(obj-|kernelsu-y)' drivers/kernelsu/Makefile
+
+          # 4. Integrate SUSFS
+          - name: Integrate SUSFS
+            run: |
+              set -euo pipefail
+              cd kernel_source
+
+              echo "========================================"
+              echo "Installing SUSFS"
+              echo "========================================"
+              rm -rf /tmp/susfs4ksu
+              git clone --depth=1 -b kernel-5.4 https://github.com/shs-sssh/susfs4ksu.git /tmp/susfs4ksu
+
+              echo "========================================"
+              echo "Preparing SUSFS source files"
+              echo "========================================"
+              cp /tmp/susfs4ksu/kernel_patches/fs/susfs.c fs/
+              
+              cp /tmp/susfs4ksu/kernel_patches/include/linux/susfs*.h \
+                include/linux/
           
+              echo "========================================"
+              echo "Applying SUSFS kernel patch"
+              echo "========================================"
+              patch -p1 < /tmp/susfs4ksu/kernel_patches/50_add_susfs_in_kernel-5.4.patch
+
+              echo "========================================"
+              echo "Applying SUSFS SukiSU patch"
+              echo "========================================"
+              patch -p1 < /tmp/susfs4ksu/kernel_patches/10_enable_susfs_for_ksu.patch
+
+              echo "========================================"
+              echo "Checking SUSFS integration"
+              echo "========================================"
+
+              test -f fs/susfs.c
+              test -f include/linux/susfs.h
+
+              grep -Rns "CONFIG_KSU_SUSFS" drivers/kernelsu/Kconfig | head -30 || true
+              grep -n "susfs.o" fs/Makefile || true
+
+              echo "========================================"
+              echo "SUSFS integration completed"
+              echo "========================================"
+
       # 4. 构建集成内核
       - name: Build Integrated Kernel
         run: |
