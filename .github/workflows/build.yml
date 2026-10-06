@@ -54,62 +54,62 @@ jobs:
           echo "SukiSU Makefile"
           echo "========================================"
           grep -nE '^(obj-|kernelsu-y)' drivers/kernelsu/Makefile
-
+  
           # 4. Integrate SUSFS
           - name: Integrate SUSFS
             run: |
               set -euo pipefail
               cd kernel_source
-          
+
               echo "========================================"
               echo "Installing SUSFS"
               echo "========================================"
               rm -rf /tmp/susfs4ksu
               git clone --depth=1 -b kernel-5.4 https://github.com/shs-sssh/susfs4ksu.git /tmp/susfs4ksu
-          
+
               echo "========================================"
               echo "Preparing SUSFS kernel source"
               echo "========================================"
               cp /tmp/susfs4ksu/kernel_patches/fs/susfs.c fs/susfs.c
               cp /tmp/susfs4ksu/kernel_patches/include/linux/susfs*.h include/linux/
-          
+
               echo "========================================"
               echo "Applying SUSFS kernel patch"
               echo "========================================"
               patch -p1 < /tmp/susfs4ksu/kernel_patches/50_add_susfs_in_kernel-5.4.patch
-          
+
               echo "========================================"
               echo "Applying SUSFS patch to SukiSU"
               echo "========================================"
               cd /tmp/SukiSU-Ultra/kernel
               patch -p1 < /tmp/susfs4ksu/kernel_patches/10_enable_susfs_for_ksu.patch
               cd "$GITHUB_WORKSPACE/kernel_source"
-          
+
               echo "========================================"
               echo "Checking SUSFS integration"
               echo "========================================"
-          
+
               echo "--- SUSFS source ---"
               test -f fs/susfs.c
               ls -l fs/susfs.c
-          
+
               echo "--- SUSFS headers ---"
               ls -l include/linux/susfs*.h
-          
+
               echo "--- Kernel Makefile ---"
               grep -n "susfs.o" fs/Makefile
-          
+
               echo "--- SukiSU Kconfig ---"
               grep -n "KSU_SUSFS" drivers/kernelsu/Kconfig | head -30 || true
-          
+
               echo "--- SukiSU source ---"
               grep -Rns "KSU_SUSFS" drivers/kernelsu --include='*.c' --include='*.h' --include='Kconfig' --include='Makefile' | head -50 || true
-          
+
               echo "========================================"
               echo "SUSFS integration completed"
               echo "========================================"
 
-      # 4. 构建集成内核
+      # 5. 构建集成内核
       - name: Build Integrated Kernel
         run: |
           set -euo pipefail
@@ -246,7 +246,7 @@ jobs:
 
           make "${MAKE_ARGS[@]}" -j"$(nproc)"
           
-       # 5. 打包 AnyKernel3
+       # 6. 打包 AnyKernel3
       - name: Pack with AnyKernel3
         shell: bash
         run: |
@@ -302,7 +302,7 @@ jobs:
           echo "========================================"
           ls -lh "${GITHUB_WORKSPACE}/SukiSU-Kernel-OP9.zip"
 
-      # 6. 上传真正的 AnyKernel3 ZIP
+      # 7. 上传真正的 AnyKernel3 ZIP
       - name: Upload Kernel Zip Artifact
         uses: actions/upload-artifact@v4
         with:
