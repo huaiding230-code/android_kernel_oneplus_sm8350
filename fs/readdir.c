@@ -4,7 +4,6 @@
  *
  *  Copyright (C) 1995  Linus Torvalds
  */
-
 #include <linux/stddef.h>
 #include <linux/kernel.h>
 #include <linux/export.h>
@@ -20,9 +19,8 @@
 #include <linux/syscalls.h>
 #include <linux/unistd.h>
 #include <linux/compat.h>
-#include <linux/uaccess.h>
-
 #include <asm/unaligned.h>
+#include <linux/uaccess.h>
 
 /*
  * Note the "unsafe_put_user() semantics: we goto a
