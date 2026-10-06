@@ -59,41 +59,70 @@ jobs:
             run: |
               set -euo pipefail
               cd kernel_source
-
+          
               echo "========================================"
               echo "Installing SUSFS"
               echo "========================================"
+          
               rm -rf /tmp/susfs4ksu
-              git clone --depth=1 -b kernel-5.4 https://github.com/shs-sssh/susfs4ksu.git /tmp/susfs4ksu
-
+          
+              git clone --depth=1 \
+                -b kernel-5.4 \
+                https://github.com/shs-sssh/susfs4ksu.git \
+                /tmp/susfs4ksu
+          
               echo "========================================"
-              echo "Preparing SUSFS source files"
+              echo "Preparing SUSFS kernel source"
               echo "========================================"
-              cp /tmp/susfs4ksu/kernel_patches/fs/susfs.c fs/
-              
+          
+              cp /tmp/susfs4ksu/kernel_patches/fs/susfs.c \
+                fs/susfs.c
+          
               cp /tmp/susfs4ksu/kernel_patches/include/linux/susfs*.h \
                 include/linux/
           
               echo "========================================"
               echo "Applying SUSFS kernel patch"
               echo "========================================"
-              patch -p1 < /tmp/susfs4ksu/kernel_patches/50_add_susfs_in_kernel-5.4.patch
-
+          
+              patch -p1 \
+                < /tmp/susfs4ksu/kernel_patches/50_add_susfs_in_kernel-5.4.patch
+          
               echo "========================================"
-              echo "Applying SUSFS SukiSU patch"
+              echo "Applying SUSFS patch to SukiSU"
               echo "========================================"
-              patch -p1 < /tmp/susfs4ksu/kernel_patches/10_enable_susfs_for_ksu.patch
-
+          
+              cd /tmp/SukiSU-Ultra/kernel
+          
+              patch -p1 \
+                < /tmp/susfs4ksu/kernel_patches/10_enable_susfs_for_ksu.patch
+          
+              cd "$GITHUB_WORKSPACE/kernel_source"
+          
               echo "========================================"
               echo "Checking SUSFS integration"
               echo "========================================"
-
+          
+              echo "--- SUSFS source ---"
               test -f fs/susfs.c
-              test -f include/linux/susfs.h
-
-              grep -Rns "CONFIG_KSU_SUSFS" drivers/kernelsu/Kconfig | head -30 || true
-              grep -n "susfs.o" fs/Makefile || true
-
+              ls -l fs/susfs.c
+          
+              echo "--- SUSFS headers ---"
+              ls -l include/linux/susfs*.h
+          
+              echo "--- Kernel Makefile ---"
+              grep -n "susfs.o" fs/Makefile
+          
+              echo "--- SukiSU Kconfig ---"
+              grep -n "KSU_SUSFS" drivers/kernelsu/Kconfig | head -30 || true
+          
+              echo "--- SukiSU source ---"
+              grep -Rns "KSU_SUSFS" drivers/kernelsu \
+                --include='*.c' \
+                --include='*.h' \
+                --include='Kconfig' \
+                --include='Makefile' | head -50 || true
+          
               echo "========================================"
               echo "SUSFS integration completed"
               echo "========================================"
