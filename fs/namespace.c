@@ -1,8 +1,13 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/* *  linux/fs/namespace.c
+/* 
+ *  linux/fs/namespace.c
+ *
  * (C) Copyright Al Viro 2000, 2001
+ *
  * Based on code from fs/super.c, copyright Linus Torvalds and others.
- * Heavily rewritten.*/
+ * Heavily rewritten.
+ */
+
 #include <linux/syscalls.h>
 #include <linux/export.h>
 #include <linux/capability.h>
