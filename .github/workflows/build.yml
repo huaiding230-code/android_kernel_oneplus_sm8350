@@ -27,7 +27,7 @@ jobs:
           mkdir -p toolchain
           git clone --depth=1 https://github.com/shs-sssh/proton-clang.git toolchain/proton-clang
           echo "${GITHUB_WORKSPACE}/toolchain/proton-clang/bin" >> $GITHUB_PATH
-          
+
       # 3. Integrate SukiSU Ultra
       - name: Integrate SukiSU Ultra
         run: |
@@ -38,13 +38,13 @@ jobs:
           echo "========================================"
           rm -rf /tmp/SukiSU-Ultra
           git clone --depth=1 -b builtin https://github.com/shs-sssh/SukiSU-Ultra.git /tmp/SukiSU-Ultra
-          
+
           echo "========================================"
           echo "Cleaning DTS changes"
           echo "========================================"
           git checkout -- arch/arm64/boot/dts/ || true
           bash /tmp/SukiSU-Ultra/kernel/setup.sh
-          
+
           ls -ld drivers/kernelsu
           readlink -f drivers/kernelsu
           grep -n -C 3 "kernelsu" drivers/Makefile || true
@@ -54,37 +54,37 @@ jobs:
           echo "SukiSU Makefile"
           echo "========================================"
           grep -nE '^(obj-|kernelsu-y)' drivers/kernelsu/Makefile
-  
+
           # 4. Integrate SUSFS
           - name: Integrate SUSFS
             run: |
               set -euo pipefail
               cd kernel_source
-              
+
               echo "========================================"
               echo "Installing SUSFS"
               echo "========================================"
               rm -rf /tmp/susfs4ksu
               git clone --depth=1 -b kernel-5.4 https://github.com/shs-sssh/susfs4ksu.git /tmp/susfs4ksu
-              
+
               echo "========================================"
               echo "Preparing SUSFS kernel source"
               echo "========================================"
               cp /tmp/susfs4ksu/kernel_patches/fs/susfs.c fs/susfs.c
               cp /tmp/susfs4ksu/kernel_patches/include/linux/susfs*.h include/linux/
-              
+
               echo "========================================"
               echo "Applying SUSFS kernel patch"
               echo "========================================"
               patch -p1 < /tmp/susfs4ksu/kernel_patches/50_add_susfs_in_kernel-5.4.patch
-              
+
               echo "========================================"
               echo "Applying SUSFS patch to SukiSU"
               echo "========================================"
               cd /tmp/SukiSU-Ultra/kernel
               patch -p1 < /tmp/susfs4ksu/kernel_patches/10_enable_susfs_for_ksu.patch
               cd "$GITHUB_WORKSPACE/kernel_source"
-              
+
               echo "========================================"
               echo "SUSFS integration completed"
               echo "========================================"
