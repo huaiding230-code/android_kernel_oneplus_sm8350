@@ -43,7 +43,7 @@ jobs:
           echo "Cleaning DTS changes"
           echo "========================================"
           git checkout -- arch/arm64/boot/dts/ || true
-          sh /tmp/SukiSU-Ultra/kernel/setup.sh
+          bash /tmp/SukiSU-Ultra/kernel/setup.sh
           
           ls -ld drivers/kernelsu
           readlink -f drivers/kernelsu
