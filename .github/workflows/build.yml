@@ -64,40 +64,25 @@ jobs:
               echo "========================================"
               echo "Installing SUSFS"
               echo "========================================"
-          
               rm -rf /tmp/susfs4ksu
-          
-              git clone --depth=1 \
-                -b kernel-5.4 \
-                https://github.com/shs-sssh/susfs4ksu.git \
-                /tmp/susfs4ksu
+              git clone --depth=1 -b kernel-5.4 https://github.com/shs-sssh/susfs4ksu.git /tmp/susfs4ksu
           
               echo "========================================"
               echo "Preparing SUSFS kernel source"
               echo "========================================"
-          
-              cp /tmp/susfs4ksu/kernel_patches/fs/susfs.c \
-                fs/susfs.c
-          
-              cp /tmp/susfs4ksu/kernel_patches/include/linux/susfs*.h \
-                include/linux/
+              cp /tmp/susfs4ksu/kernel_patches/fs/susfs.c fs/susfs.c
+              cp /tmp/susfs4ksu/kernel_patches/include/linux/susfs*.h include/linux/
           
               echo "========================================"
               echo "Applying SUSFS kernel patch"
               echo "========================================"
-          
-              patch -p1 \
-                < /tmp/susfs4ksu/kernel_patches/50_add_susfs_in_kernel-5.4.patch
+              patch -p1 < /tmp/susfs4ksu/kernel_patches/50_add_susfs_in_kernel-5.4.patch
           
               echo "========================================"
               echo "Applying SUSFS patch to SukiSU"
               echo "========================================"
-          
               cd /tmp/SukiSU-Ultra/kernel
-          
-              patch -p1 \
-                < /tmp/susfs4ksu/kernel_patches/10_enable_susfs_for_ksu.patch
-          
+              patch -p1 < /tmp/susfs4ksu/kernel_patches/10_enable_susfs_for_ksu.patch
               cd "$GITHUB_WORKSPACE/kernel_source"
           
               echo "========================================"
@@ -118,11 +103,7 @@ jobs:
               grep -n "KSU_SUSFS" drivers/kernelsu/Kconfig | head -30 || true
           
               echo "--- SukiSU source ---"
-              grep -Rns "KSU_SUSFS" drivers/kernelsu \
-                --include='*.c' \
-                --include='*.h' \
-                --include='Kconfig' \
-                --include='Makefile' | head -50 || true
+              grep -Rns "KSU_SUSFS" drivers/kernelsu --include='*.c' --include='*.h' --include='Kconfig' --include='Makefile' | head -50 || true
           
               echo "========================================"
               echo "SUSFS integration completed"
